@@ -1,0 +1,282 @@
+@font-face {
+    font-family: 'DOS';
+    src: local('Courier New'), local('Consolas'), local('monospace');
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'DOS', 'Courier New', monospace;
+    font-size: 16px;
+    background-color: #0000AA;
+    color: #FFFFFF;
+    overflow: hidden;
+    height: 100vh;
+}
+
+.screen {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* Auth Screen */
+.auth-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    text-align: center;
+}
+
+.auth-container h1 {
+    color: #FFFF00;
+    margin-bottom: 30px;
+    font-size: 24px;
+}
+
+.auth-container p {
+    color: #00FFFF;
+    font-size: 18px;
+}
+
+.auth-status {
+    margin-top: 20px;
+    color: #FFFFFF;
+}
+
+/* Main Screen */
+.app-title-bar {
+    background-color: #0000AA;
+    color: #00FFFF;
+    padding: 5px 10px;
+    text-align: center;
+    border-bottom: 2px solid #00FFFF;
+    font-weight: bold;
+}
+
+.panes-container {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    padding: 8px;
+    gap: 8px;
+}
+
+.pane {
+    flex: 0 0 50%;
+    width: 50%;
+    max-width: 50%;
+    display: flex;
+    flex-direction: column;
+    border: 5px double #5555FF;
+    background-color: #000088;
+    overflow: hidden;
+}
+
+.pane.active {
+    border-color: #00FFFF;
+}
+
+.pane-header {
+    background-color: #5555FF;
+    color: #000000;
+    padding: 3px 10px;
+    font-weight: bold;
+}
+
+.pane.active .pane-header {
+    background-color: #00FFFF;
+}
+
+.pane-path {
+    font-family: 'DOS', 'Courier New', monospace;
+    font-size: 14px;
+}
+
+.file-list {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 5px;
+}
+
+.file-item {
+    padding: 1px 8px;
+    cursor: pointer;
+    white-space: nowrap;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    line-height: 1.4;
+}
+
+.file-item:hover {
+    background-color: #0000DD;
+}
+
+.file-item.selected {
+    background-color: #00FFFF;
+    color: #000000;
+}
+
+.file-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-right: 10px;
+    min-width: 0;
+}
+
+.file-info {
+    flex-shrink: 0;
+    text-align: right;
+    width: 60px;
+    min-width: 60px;
+    max-width: 60px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #AAAAAA;
+    font-size: 13px;
+}
+
+.file-item.selected .file-info {
+    color: #000000;
+}
+
+/* Status Bar */
+.status-bar {
+    background-color: #000088;
+    color: #FFFF00;
+    padding: 5px 10px;
+    border-top: 1px solid #5555FF;
+    min-height: 30px;
+}
+
+/* Function Bar */
+.function-bar {
+    background-color: #000000;
+    color: #00FFFF;
+    padding: 5px;
+    display: flex;
+    justify-content: space-around;
+}
+
+.function-key {
+    padding: 2px 5px;
+}
+
+.key-num {
+    background-color: #00FFFF;
+    color: #000000;
+    padding: 0 3px;
+    margin-right: 2px;
+}
+
+/* Dialog */
+.dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.dialog-box {
+    background-color: #5555FF;
+    border: 3px solid #00FFFF;
+    padding: 20px;
+    min-width: 400px;
+    max-width: 600px;
+}
+
+.dialog-title {
+    color: #FFFF00;
+    font-weight: bold;
+    margin-bottom: 15px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #00FFFF;
+}
+
+.dialog-content {
+    color: #FFFFFF;
+    margin-bottom: 20px;
+    line-height: 1.5;
+}
+
+.dialog-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+}
+
+.dialog-button {
+    background-color: #000088;
+    color: #00FFFF;
+    border: 2px solid #00FFFF;
+    padding: 5px 15px;
+    cursor: pointer;
+    font-family: 'DOS', 'Courier New', monospace;
+    font-size: 16px;
+}
+
+.dialog-button:hover {
+    background-color: #00FFFF;
+    color: #000000;
+}
+
+.dialog-button:focus {
+    outline: 2px solid #FFFF00;
+}
+
+.dialog-input {
+    background-color: #000088;
+    color: #FFFFFF;
+    border: 2px solid #00FFFF;
+    padding: 5px;
+    font-family: 'DOS', 'Courier New', monospace;
+    font-size: 16px;
+    width: 100%;
+    margin-top: 10px;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 12px;
+}
+
+::-webkit-scrollbar-track {
+    background: #000088;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #5555FF;
+    border: 1px solid #00FFFF;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #00FFFF;
+}
+
+/* Loading indicator */
+.loading {
+    color: #FFFF00;
+    text-align: center;
+    padding: 20px;
+}
