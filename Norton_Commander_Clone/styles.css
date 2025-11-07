@@ -104,6 +104,33 @@ body {
     font-size: 14px;
 }
 
+.column-headers {
+    background-color: #000088;
+    color: #FFFF00;
+    padding: 3px 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #5555FF;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.header-name {
+    flex: 1;
+    margin-right: 10px;
+}
+
+.header-divider {
+    color: #5555FF;
+    margin: 0 5px;
+}
+
+.header-type {
+    width: 60px;
+    text-align: right;
+}
+
 .file-list {
     flex: 1;
     overflow-y: auto;
@@ -279,4 +306,59 @@ body {
     color: #FFFF00;
     text-align: center;
     padding: 20px;
+}
+
+/* Splash Screen */
+.splash-screen {
+    padding: 20px;
+    color: #00FFFF;
+    font-family: 'DOS', 'Courier New', monospace;
+    line-height: 1.6;
+}
+
+.splash-header {
+    color: #00FFFF;
+    font-weight: bold;
+    font-size: 16px;
+    margin-bottom: 5px;
+    text-align: center;
+}
+
+.splash-version {
+    color: #00FFFF;
+    text-align: center;
+    margin-bottom: 3px;
+}
+
+.splash-date {
+    color: #00FFFF;
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+.splash-divider {
+    border-bottom: 1px solid #5555FF;
+    margin: 15px 0;
+}
+
+.splash-section {
+    display: flex;
+    justify-content: space-between;
+    margin: 8px 0;
+}
+
+.splash-label {
+    color: #00FFFF;
+}
+
+.splash-value {
+    color: #FFFFFF;
+    text-align: right;
+}
+
+.splash-footer {
+    color: #00FFFF;
+    margin-top: 20px;
+    text-align: center;
+    font-style: italic;
 }

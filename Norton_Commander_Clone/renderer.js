@@ -3,6 +3,7 @@ const { ipcRenderer, shell } = require('electron');
 // State management
 const state = {
     activePane: 'left',
+    showingSplash: true, // Track if splash screen is showing
     leftPane: {
         currentFolder: 'root',
         currentFolderName: '',
@@ -56,7 +57,72 @@ function showMainScreen() {
 
     // Load initial directories
     loadFiles('left');
-    loadFiles('right');
+    showSplashScreen('right');
+}
+
+function showSplashScreen(pane) {
+    const listElement = pane === 'left' ? leftList : rightList;
+    listElement.innerHTML = '';
+
+    // Get system memory info (if available)
+    let totalMem = 'N/A';
+    let freeMem = 'N/A';
+    if (typeof process !== 'undefined' && process.memoryUsage) {
+        const memUsage = process.memoryUsage();
+        const totalSystemMem = require('os').totalmem();
+        const freeSystemMem = require('os').freemem();
+        totalMem = Math.round(totalSystemMem / (1024 * 1024)) + ' MB';
+        freeMem = Math.round(freeSystemMem / (1024 * 1024)) + ' MB';
+    }
+
+    // Generate hex serial number from current timestamp
+    const now = new Date();
+    const timestamp = now.getTime();
+    const serialHex = timestamp.toString(16).toUpperCase().padStart(16, '0');
+    const formattedSerial = serialHex.match(/.{1,4}/g).join('-');
+
+    const splash = document.createElement('div');
+    splash.className = 'splash-screen';
+    splash.innerHTML = `
+        <div class="splash-header">
+            The Google Drive Norton Commander
+        </div>
+        <div class="splash-version">Version 1.01</div>
+        <div class="splash-date">19 September 1996</div>
+
+        <div class="splash-divider"></div>
+
+        <div class="splash-section">
+            <div class="splash-label">Total Memory:</div>
+            <div class="splash-value">${totalMem}</div>
+        </div>
+        <div class="splash-section">
+            <div class="splash-label">Free Memory:</div>
+            <div class="splash-value">${freeMem}</div>
+        </div>
+
+        <div class="splash-divider"></div>
+
+        <div class="splash-section">
+            <div class="splash-label">Machine ID:</div>
+            <div class="splash-value">Intel 486 DX4-100</div>
+        </div>
+
+        <div class="splash-divider"></div>
+
+        <div class="splash-section">
+            <div class="splash-label">Serial Number:</div>
+            <div class="splash-value">${formattedSerial}</div>
+        </div>
+
+        <div class="splash-divider"></div>
+
+        <div class="splash-footer">
+            No "dirinfo" file in this directory
+        </div>
+    `;
+
+    listElement.appendChild(splash);
 }
 
 async function loadFiles(pane) {
@@ -133,7 +199,7 @@ function renderFiles(pane) {
         } else {
             item.classList.add('file');
             nameSpan.textContent = file.name;
-            infoSpan.textContent = ''; // No info for regular files
+            infoSpan.textContent = getFileType(file.mimeType);
         }
 
         // Add title attribute for full filename on hover
@@ -211,6 +277,55 @@ function formatDate(dateString) {
     return `${month}/${day}/${year} ${hours}:${minutes}`;
 }
 
+function getFileType(mimeType) {
+    // Google Workspace types
+    if (mimeType === 'application/vnd.google-apps.document') return 'GDOC';
+    if (mimeType === 'application/vnd.google-apps.spreadsheet') return 'GSHEET';
+    if (mimeType === 'application/vnd.google-apps.presentation') return 'GSLIDE';
+    if (mimeType === 'application/vnd.google-apps.form') return 'GFORM';
+    if (mimeType === 'application/vnd.google-apps.drawing') return 'GDRAW';
+    if (mimeType === 'application/vnd.google-apps.folder') return 'SUB-DIR';
+
+    // Office documents
+    if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') return 'DOCX';
+    if (mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') return 'XLSX';
+    if (mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') return 'PPTX';
+    if (mimeType === 'application/msword') return 'DOC';
+    if (mimeType === 'application/vnd.ms-excel') return 'XLS';
+    if (mimeType === 'application/vnd.ms-powerpoint') return 'PPT';
+
+    // PDFs and text
+    if (mimeType === 'application/pdf') return 'PDF';
+    if (mimeType === 'text/plain') return 'TXT';
+    if (mimeType === 'text/html') return 'HTML';
+    if (mimeType === 'text/css') return 'CSS';
+    if (mimeType === 'text/javascript' || mimeType === 'application/javascript') return 'JS';
+
+    // Images
+    if (mimeType.startsWith('image/')) {
+        const type = mimeType.split('/')[1].toUpperCase();
+        if (type === 'JPEG') return 'JPG';
+        if (type === 'PNG') return 'PNG';
+        if (type === 'GIF') return 'GIF';
+        if (type === 'SVG+XML') return 'SVG';
+        return 'IMG';
+    }
+
+    // Video
+    if (mimeType.startsWith('video/')) return 'VIDEO';
+
+    // Audio
+    if (mimeType.startsWith('audio/')) return 'AUDIO';
+
+    // Archives
+    if (mimeType === 'application/zip') return 'ZIP';
+    if (mimeType === 'application/x-rar-compressed') return 'RAR';
+    if (mimeType === 'application/x-7z-compressed') return '7Z';
+
+    // Default
+    return 'FILE';
+}
+
 function setupKeyboardListeners() {
     document.addEventListener('keydown', (e) => {
         // Check if dialog is open - if so, don't handle main screen keys
@@ -249,8 +364,23 @@ function handleMainScreenKeys(e) {
             }
             break;
 
+        case 'PageDown':
+            e.preventDefault();
+            handlePageDown();
+            break;
+
+        case 'PageUp':
+            e.preventDefault();
+            handlePageUp();
+            break;
+
         case 'Tab':
             e.preventDefault();
+            // If splash is showing, hide it and load right pane
+            if (state.showingSplash) {
+                state.showingSplash = false;
+                loadFiles('right');
+            }
             toggleActivePane();
             break;
 
@@ -301,6 +431,42 @@ function toggleActivePane() {
         leftPane.classList.remove('active');
         rightPane.classList.add('active');
     }
+}
+
+function handlePageDown() {
+    const paneState = state[state.activePane + 'Pane'];
+    const listElement = state.activePane === 'left' ? leftList : rightList;
+    const hasParentDir = paneState.currentFolder !== 'root';
+    const minIndex = hasParentDir ? -1 : 0;
+
+    // Calculate visible items in the list
+    const itemHeight = 20; // Approximate height of each item in pixels
+    const visibleHeight = listElement.clientHeight;
+    const pageSize = Math.floor(visibleHeight / itemHeight);
+
+    // Jump down by a page
+    const newIndex = Math.min(paneState.selectedIndex + pageSize, paneState.files.length - 1);
+    paneState.selectedIndex = newIndex;
+    updateSelection(state.activePane);
+    updateStatusBar();
+}
+
+function handlePageUp() {
+    const paneState = state[state.activePane + 'Pane'];
+    const listElement = state.activePane === 'left' ? leftList : rightList;
+    const hasParentDir = paneState.currentFolder !== 'root';
+    const minIndex = hasParentDir ? -1 : 0;
+
+    // Calculate visible items in the list
+    const itemHeight = 20; // Approximate height of each item in pixels
+    const visibleHeight = listElement.clientHeight;
+    const pageSize = Math.floor(visibleHeight / itemHeight);
+
+    // Jump up by a page
+    const newIndex = Math.max(paneState.selectedIndex - pageSize, minIndex);
+    paneState.selectedIndex = newIndex;
+    updateSelection(state.activePane);
+    updateStatusBar();
 }
 
 async function handleEnter() {
