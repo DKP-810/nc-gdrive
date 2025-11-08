@@ -88,6 +88,68 @@ body {
     border-color: #00FFFF;
 }
 
+/* View mode colors - Drive (blue - default) */
+.pane.mode-drive {
+    border-color: #5555FF;
+    background-color: #000088;
+}
+
+.pane.mode-drive.active {
+    border-color: #00FFFF;
+}
+
+/* View mode colors - Shared (green) */
+.pane.mode-shared {
+    border-color: #00AA00;
+    background-color: #004400;
+}
+
+.pane.mode-shared.active {
+    border-color: #00FF00;
+}
+
+.pane.mode-shared .pane-header {
+    background-color: #00AA00;
+}
+
+.pane.mode-shared.active .pane-header {
+    background-color: #00FF00;
+}
+
+.pane.mode-shared .column-headers {
+    background-color: #004400;
+}
+
+.pane.mode-shared .file-list {
+    background-color: #004400;
+}
+
+/* View mode colors - Recent (yellow) */
+.pane.mode-recent {
+    border-color: #AAAA00;
+    background-color: #444400;
+}
+
+.pane.mode-recent.active {
+    border-color: #FFFF00;
+}
+
+.pane.mode-recent .pane-header {
+    background-color: #AAAA00;
+}
+
+.pane.mode-recent.active .pane-header {
+    background-color: #FFFF00;
+}
+
+.pane.mode-recent .column-headers {
+    background-color: #444400;
+}
+
+.pane.mode-recent .file-list {
+    background-color: #444400;
+}
+
 .pane-header {
     background-color: #5555FF;
     color: #000000;
@@ -129,6 +191,19 @@ body {
 .header-type {
     width: 60px;
     text-align: right;
+}
+
+.header-owner {
+    width: 100px;
+    text-align: right;
+    font-size: 12px;
+}
+
+/* Adjust layout when owner column is present */
+.column-headers.has-owner .header-name {
+    flex: 1;
+    margin-right: 10px;
+    min-width: 0;
 }
 
 .file-list {
@@ -180,6 +255,41 @@ body {
 
 .file-item.selected .file-info {
     color: #000000;
+}
+
+.file-icon {
+    flex-shrink: 0;
+    margin-right: 8px;
+    font-size: 14px;
+    opacity: 0.8;
+}
+
+.file-owner {
+    flex-shrink: 0;
+    text-align: right;
+    width: 100px;
+    min-width: 100px;
+    max-width: 100px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #AAAAAA;
+    font-size: 11px;
+    margin-left: 5px;
+}
+
+.file-item.selected .file-owner {
+    color: #000000;
+}
+
+/* Adjust file name width when owner column is present */
+.file-item.has-owner .file-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-right: 10px;
+    min-width: 0;
+    max-width: calc(100% - 180px); /* Adjust based on Type (60px) + Owner (100px) + spacing */
 }
 
 /* Status Bar */
@@ -361,4 +471,136 @@ body {
     margin-top: 20px;
     text-align: center;
     font-style: italic;
+}
+
+/* Search Dialog */
+.search-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.search-box {
+    background-color: #000088;
+    border: 3px solid #00FFFF;
+    padding: 20px;
+    min-width: 600px;
+    max-width: 800px;
+}
+
+.search-title {
+    color: #FFFF00;
+    font-weight: bold;
+    margin-bottom: 15px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #00FFFF;
+    font-size: 16px;
+}
+
+.search-input-container {
+    margin-bottom: 15px;
+}
+
+.search-input {
+    background-color: #0000AA;
+    color: #FFFFFF;
+    border: 2px solid #00FFFF;
+    padding: 8px 10px;
+    font-family: 'DOS', 'Courier New', monospace;
+    font-size: 16px;
+    width: 100%;
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: #FFFF00;
+}
+
+.search-suggestions {
+    margin-bottom: 15px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.suggestions-header {
+    color: #00FFFF;
+    font-size: 13px;
+    margin-bottom: 8px;
+    padding-left: 5px;
+}
+
+.suggestions-list {
+    border: 2px solid #5555FF;
+    background-color: #000066;
+}
+
+.suggestion-item {
+    padding: 6px 10px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #0000AA;
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.suggestion-item:hover {
+    background-color: #0000DD;
+}
+
+.suggestion-item.selected {
+    background-color: #00FFFF;
+    color: #000000;
+}
+
+.suggestion-icon {
+    flex-shrink: 0;
+    margin-right: 8px;
+    font-size: 14px;
+    opacity: 0.8;
+}
+
+.suggestion-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-right: 10px;
+}
+
+.suggestion-type {
+    color: #AAAAAA;
+    font-size: 12px;
+    width: 60px;
+    text-align: right;
+}
+
+.suggestion-item.selected .suggestion-type {
+    color: #000000;
+}
+
+.search-footer {
+    color: #00FFFF;
+    font-size: 13px;
+    text-align: center;
+    padding-top: 10px;
+    border-top: 1px solid #5555FF;
+}
+
+.key-hint {
+    background-color: #00FFFF;
+    color: #000000;
+    padding: 2px 6px;
+    border-radius: 2px;
+    font-weight: bold;
 }

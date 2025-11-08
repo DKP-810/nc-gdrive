@@ -25,7 +25,7 @@
                 <div class="pane-header">
                     <span id="left-path" class="pane-path">Drive:\</span>
                 </div>
-                <div class="column-headers">
+                <div class="column-headers" id="left-headers">
                     <span class="header-name">Name</span>
                     <span class="header-divider">│</span>
                     <span class="header-type">Type</span>
@@ -37,7 +37,7 @@
                 <div class="pane-header">
                     <span id="right-path" class="pane-path">Drive:\</span>
                 </div>
-                <div class="column-headers">
+                <div class="column-headers" id="right-headers">
                     <span class="header-name">Name</span>
                     <span class="header-divider">│</span>
                     <span class="header-type">Type</span>
@@ -52,14 +52,14 @@
 
         <div class="function-bar">
             <span class="function-key"><span class="key-num">1</span>Help</span>
-            <span class="function-key"><span class="key-num">2</span>Menu</span>
-            <span class="function-key"><span class="key-num">3</span>View</span>
+            <span class="function-key"><span class="key-num">2</span>View</span>
+            <span class="function-key"><span class="key-num">3</span>PullDn</span>
             <span class="function-key"><span class="key-num">4</span>Edit</span>
             <span class="function-key"><span class="key-num">5</span>Copy</span>
             <span class="function-key"><span class="key-num">6</span>Move</span>
             <span class="function-key"><span class="key-num">7</span>Mkdir</span>
             <span class="function-key"><span class="key-num">8</span>Delete</span>
-            <span class="function-key"><span class="key-num">9</span>PullDn</span>
+            <span class="function-key"><span class="key-num">9</span>Search</span>
             <span class="function-key"><span class="key-num">10</span>Quit</span>
         </div>
     </div>
@@ -69,6 +69,22 @@
             <div class="dialog-title"></div>
             <div class="dialog-content"></div>
             <div class="dialog-buttons"></div>
+        </div>
+    </div>
+
+    <div id="search-overlay" class="search-overlay hidden">
+        <div class="search-box">
+            <div class="search-title">Search Google Drive</div>
+            <div class="search-input-container">
+                <input type="text" id="search-input" class="search-input" placeholder="Type to search..." />
+            </div>
+            <div id="search-suggestions" class="search-suggestions hidden">
+                <div class="suggestions-header">Suggested matches:</div>
+                <div id="suggestions-list" class="suggestions-list"></div>
+            </div>
+            <div class="search-footer">
+                <span class="key-hint">Enter</span> to open • <span class="key-hint">Shift+Enter</span> for full results • <span class="key-hint">Esc</span> to cancel
+            </div>
         </div>
     </div>
 

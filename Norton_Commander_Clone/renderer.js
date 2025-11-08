@@ -4,13 +4,15 @@ const { ipcRenderer, shell } = require('electron');
 const state = {
     activePane: 'left',
     showingSplash: true, // Track if splash screen is showing
+    searchUsingKeyboard: false, // Track if user is using keyboard in search
     leftPane: {
         currentFolder: 'root',
         currentFolderName: '',
         files: [],
         selectedIndex: 0,
         folderStack: [],
-        pathNames: [] // Stack of folder names for building path
+        pathNames: [], // Stack of folder names for building path
+        viewMode: 'drive' // 'drive', 'recent', or 'shared'
     },
     rightPane: {
         currentFolder: 'root',
@@ -18,7 +20,8 @@ const state = {
         files: [],
         selectedIndex: 0,
         folderStack: [],
-        pathNames: [] // Stack of folder names for building path
+        pathNames: [], // Stack of folder names for building path
+        viewMode: 'drive' // 'drive', 'recent', or 'shared'
     }
 };
 
@@ -31,8 +34,14 @@ const leftPane = document.getElementById('left-pane');
 const rightPane = document.getElementById('right-pane');
 const leftPath = document.getElementById('left-path');
 const rightPath = document.getElementById('right-path');
+const leftHeaders = document.getElementById('left-headers');
+const rightHeaders = document.getElementById('right-headers');
 const statusInfo = document.getElementById('status-info');
 const dialogOverlay = document.getElementById('dialog-overlay');
+const searchOverlay = document.getElementById('search-overlay');
+const searchInput = document.getElementById('search-input');
+const searchSuggestions = document.getElementById('search-suggestions');
+const suggestionsList = document.getElementById('suggestions-list');
 
 // Initialize app
 async function init() {
@@ -58,6 +67,7 @@ function showMainScreen() {
     // Load initial directories
     loadFiles('left');
     showSplashScreen('right');
+    updatePaneColors();
 }
 
 function showSplashScreen(pane) {
@@ -131,12 +141,23 @@ async function loadFiles(pane) {
 
     listElement.innerHTML = '<div class="loading">Loading...</div>';
 
-    const result = await ipcRenderer.invoke('list-files', paneState.currentFolder);
+    let result;
+
+    // Load files based on view mode
+    if (paneState.viewMode === 'recent') {
+        result = await ipcRenderer.invoke('list-recent-files');
+    } else if (paneState.viewMode === 'shared') {
+        result = await ipcRenderer.invoke('list-shared-files');
+    } else {
+        // Default drive mode
+        result = await ipcRenderer.invoke('list-files', paneState.currentFolder);
+    }
 
     if (result.success) {
         paneState.files = result.files;
         renderFiles(pane);
         updateStatusBar();
+        updatePaneColors();
     } else {
         listElement.innerHTML = `<div style="color: #FF0000;">Error: ${result.error}</div>`;
     }
@@ -145,11 +166,32 @@ async function loadFiles(pane) {
 function renderFiles(pane) {
     const paneState = state[pane + 'Pane'];
     const listElement = pane === 'left' ? leftList : rightList;
+    const headersElement = pane === 'left' ? leftHeaders : rightHeaders;
+
+    // Update column headers based on view mode
+    const showOwner = paneState.viewMode === 'recent' || paneState.viewMode === 'shared';
+    if (showOwner) {
+        headersElement.innerHTML = `
+            <span class="header-name">Name</span>
+            <span class="header-divider">│</span>
+            <span class="header-type">Type</span>
+            <span class="header-divider">│</span>
+            <span class="header-owner">Owner</span>
+        `;
+        headersElement.classList.add('has-owner');
+    } else {
+        headersElement.innerHTML = `
+            <span class="header-name">Name</span>
+            <span class="header-divider">│</span>
+            <span class="header-type">Type</span>
+        `;
+        headersElement.classList.remove('has-owner');
+    }
 
     listElement.innerHTML = '';
 
-    // Add parent directory entry if not at root
-    if (paneState.currentFolder !== 'root') {
+    // Add parent directory entry if not at root (and not in recent/shared mode)
+    if (paneState.currentFolder !== 'root' && paneState.viewMode === 'drive') {
         const parentItem = document.createElement('div');
         parentItem.className = 'file-item parent';
 
@@ -185,6 +227,9 @@ function renderFiles(pane) {
     paneState.files.forEach((file, index) => {
         const item = document.createElement('div');
         item.className = 'file-item';
+        if (showOwner) {
+            item.classList.add('has-owner');
+        }
 
         const nameSpan = document.createElement('span');
         nameSpan.className = 'file-name';
@@ -194,6 +239,13 @@ function renderFiles(pane) {
 
         if (file.mimeType === 'application/vnd.google-apps.folder') {
             item.classList.add('folder');
+
+            // Add folder icon
+            const iconSpan = document.createElement('span');
+            iconSpan.className = 'file-icon';
+            iconSpan.textContent = '📁';
+            item.appendChild(iconSpan);
+
             nameSpan.textContent = file.name;
             infoSpan.textContent = 'SUB-DIR';
         } else {
@@ -207,6 +259,17 @@ function renderFiles(pane) {
 
         item.appendChild(nameSpan);
         item.appendChild(infoSpan);
+
+        // Add owner column if in recent/shared mode
+        if (showOwner) {
+            const ownerSpan = document.createElement('span');
+            ownerSpan.className = 'file-owner';
+            const ownerName = file.owners && file.owners[0] ? file.owners[0].displayName : 'Unknown';
+            ownerSpan.textContent = ownerName;
+            ownerSpan.title = ownerName; // Full name on hover
+            item.appendChild(ownerSpan);
+        }
+
         item.dataset.index = index;
         item.dataset.fileId = file.id;
         item.dataset.mimeType = file.mimeType;
@@ -333,6 +396,11 @@ function setupKeyboardListeners() {
             return; // Let dialog handle its own keyboard events
         }
 
+        // Check if search dialog is open - if so, don't handle main screen keys
+        if (!searchOverlay.classList.contains('hidden')) {
+            return; // Let search dialog handle its own keyboard events
+        }
+
         // Main screen keyboard handling
         if (!mainScreen.classList.contains('hidden')) {
             handleMainScreenKeys(e);
@@ -414,6 +482,16 @@ function handleMainScreenKeys(e) {
             handleDelete();
             break;
 
+        case 'F9':
+            e.preventDefault();
+            showSearchDialog();
+            break;
+
+        case 'F2':
+            e.preventDefault();
+            handleViewModeMenu();
+            break;
+
         case 'F10':
             e.preventDefault();
             window.close();
@@ -423,14 +501,7 @@ function handleMainScreenKeys(e) {
 
 function toggleActivePane() {
     state.activePane = state.activePane === 'left' ? 'right' : 'left';
-
-    if (state.activePane === 'left') {
-        leftPane.classList.add('active');
-        rightPane.classList.remove('active');
-    } else {
-        leftPane.classList.remove('active');
-        rightPane.classList.add('active');
-    }
+    updatePaneColors();
 }
 
 function handlePageDown() {
@@ -483,16 +554,22 @@ async function handleEnter() {
     if (!currentFile) return;
 
     if (currentFile.mimeType === 'application/vnd.google-apps.folder') {
-        // Navigate into folder
-        paneState.folderStack.push({
-            id: paneState.currentFolder,
-            selectedIndex: paneState.selectedIndex
-        });
-        paneState.currentFolder = currentFile.id;
-        paneState.pathNames.push(currentFile.name); // Add folder name to path
-        paneState.selectedIndex = -1; // Select parent (..) by default
-        await loadFiles(state.activePane);
-        updatePathDisplay();
+        // In recent/shared mode, don't navigate into folders - just open them
+        if (paneState.viewMode === 'recent' || paneState.viewMode === 'shared') {
+            const url = await ipcRenderer.invoke('get-file-url', currentFile.id);
+            shell.openExternal(url);
+        } else {
+            // Navigate into folder (drive mode only)
+            paneState.folderStack.push({
+                id: paneState.currentFolder,
+                selectedIndex: paneState.selectedIndex
+            });
+            paneState.currentFolder = currentFile.id;
+            paneState.pathNames.push(currentFile.name); // Add folder name to path
+            paneState.selectedIndex = -1; // Select parent (..) by default
+            await loadFiles(state.activePane);
+            updatePathDisplay();
+        }
     } else {
         // Open file in browser
         const url = await ipcRenderer.invoke('get-file-url', currentFile.id);
@@ -515,17 +592,33 @@ async function handleBackspace() {
 
 function updatePathDisplay() {
     // Build DOS-style path for left pane
+    const leftPrefix = getPathPrefix('left');
     if (state.leftPane.pathNames.length === 0) {
-        leftPath.textContent = 'Drive:\\';
+        leftPath.textContent = leftPrefix;
     } else {
-        leftPath.textContent = 'Drive:\\' + state.leftPane.pathNames.join('\\');
+        leftPath.textContent = leftPrefix + state.leftPane.pathNames.join('\\');
     }
 
     // Build DOS-style path for right pane
+    const rightPrefix = getPathPrefix('right');
     if (state.rightPane.pathNames.length === 0) {
-        rightPath.textContent = 'Drive:\\';
+        rightPath.textContent = rightPrefix;
     } else {
-        rightPath.textContent = 'Drive:\\' + state.rightPane.pathNames.join('\\');
+        rightPath.textContent = rightPrefix + state.rightPane.pathNames.join('\\');
+    }
+}
+
+function getPathPrefix(pane) {
+    const paneState = state[pane + 'Pane'];
+
+    switch (paneState.viewMode) {
+        case 'recent':
+            return 'Recent:\\';
+        case 'shared':
+            return 'Shared:\\';
+        case 'drive':
+        default:
+            return 'Drive:\\';
     }
 }
 
@@ -771,6 +864,434 @@ function showInputDialog(title, prompt, defaultValue) {
         okButton.addEventListener('keydown', buttonKeyHandler);
         cancelButton.addEventListener('keydown', buttonKeyHandler);
     });
+}
+
+async function handleViewModeMenu() {
+    const paneState = state[state.activePane + 'Pane'];
+    const currentMode = paneState.viewMode;
+
+    // Show selection menu with current mode pre-selected
+    const options = ['Main Drive', 'Recent Files', 'Shared With Me'];
+    const modeMap = {
+        'Main Drive': 'drive',
+        'Recent Files': 'recent',
+        'Shared With Me': 'shared'
+    };
+
+    // Find current selection index
+    let defaultIndex = 0;
+    if (currentMode === 'recent') defaultIndex = 1;
+    else if (currentMode === 'shared') defaultIndex = 2;
+
+    const selected = await showSelectionDialog(
+        'View Mode',
+        'Select view mode for this pane:',
+        options,
+        defaultIndex
+    );
+
+    if (selected) {
+        const newMode = modeMap[selected];
+
+        // Only reload if mode actually changed
+        if (newMode !== paneState.viewMode) {
+            paneState.viewMode = newMode;
+
+            // Reset pane state for new view mode
+            if (newMode === 'recent' || newMode === 'shared') {
+                // For recent/shared views, reset folder navigation
+                paneState.currentFolder = 'root';
+                paneState.folderStack = [];
+                paneState.pathNames = [];
+                paneState.selectedIndex = 0;
+            }
+
+            // Reload files for the active pane
+            await loadFiles(state.activePane);
+            updatePathDisplay();
+        }
+    }
+}
+
+function updatePaneColors() {
+    // Update left pane color
+    const leftPaneState = state.leftPane;
+    leftPane.className = 'pane';
+    if (state.activePane === 'left') {
+        leftPane.classList.add('active');
+    }
+    leftPane.classList.add(`mode-${leftPaneState.viewMode}`);
+
+    // Update right pane color
+    const rightPaneState = state.rightPane;
+    rightPane.className = 'pane';
+    if (state.activePane === 'right') {
+        rightPane.classList.add('active');
+    }
+    rightPane.classList.add(`mode-${rightPaneState.viewMode}`);
+}
+
+function showSelectionDialog(title, prompt, options, defaultIndex = 0) {
+    return new Promise((resolve) => {
+        const dialogTitle = dialogOverlay.querySelector('.dialog-title');
+        const dialogContent = dialogOverlay.querySelector('.dialog-content');
+        const dialogButtons = dialogOverlay.querySelector('.dialog-buttons');
+
+        dialogTitle.textContent = title;
+        dialogContent.innerHTML = `
+            <div style="margin-bottom: 10px;">${prompt}</div>
+            <div class="selection-list" style="border: 2px solid #00FFFF; background-color: #000088; padding: 5px;"></div>
+        `;
+
+        const selectionList = dialogContent.querySelector('.selection-list');
+        let selectedIndex = defaultIndex;
+
+        // Create selection items
+        options.forEach((option, index) => {
+            const item = document.createElement('div');
+            item.className = 'selection-item';
+            item.style.padding = '3px 8px';
+            item.style.cursor = 'pointer';
+            item.textContent = option;
+            item.dataset.index = index;
+
+            if (index === selectedIndex) {
+                item.style.backgroundColor = '#00FFFF';
+                item.style.color = '#000000';
+            }
+
+            item.addEventListener('click', () => {
+                cleanup();
+                resolve(option);
+            });
+
+            selectionList.appendChild(item);
+        });
+
+        dialogButtons.innerHTML = '';
+
+        const escButton = document.createElement('button');
+        escButton.className = 'dialog-button';
+        escButton.textContent = 'Esc to exit';
+        escButton.addEventListener('click', () => {
+            cleanup();
+            resolve(null);
+        });
+
+        dialogButtons.appendChild(escButton);
+
+        // Update selection highlighting
+        const updateSelection = () => {
+            const items = selectionList.querySelectorAll('.selection-item');
+            items.forEach((item, idx) => {
+                if (idx === selectedIndex) {
+                    item.style.backgroundColor = '#00FFFF';
+                    item.style.color = '#000000';
+                } else {
+                    item.style.backgroundColor = '';
+                    item.style.color = '';
+                }
+            });
+        };
+
+        // Keyboard handler for selection
+        const dialogKeyHandler = (e) => {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                selectedIndex = Math.min(options.length - 1, selectedIndex + 1);
+                updateSelection();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                selectedIndex = Math.max(0, selectedIndex - 1);
+                updateSelection();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                // If button is focused, trigger it; otherwise select current option
+                if (document.activeElement === escButton) {
+                    cleanup();
+                    resolve(null);
+                } else {
+                    cleanup();
+                    resolve(options[selectedIndex]);
+                }
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                cleanup();
+                resolve(null);
+            } else if (e.key === 'Tab') {
+                e.preventDefault();
+                escButton.focus();
+            }
+        };
+
+        const cleanup = () => {
+            dialogOverlay.classList.add('hidden');
+            document.removeEventListener('keydown', dialogKeyHandler);
+        };
+
+        document.addEventListener('keydown', dialogKeyHandler);
+        dialogOverlay.classList.remove('hidden');
+        selectionList.focus();
+    });
+}
+
+// Search functionality
+let searchTimeout = null;
+let searchSelectedIndex = 0;
+let searchResults = [];
+
+function showSearchDialog() {
+    // Reset search state
+    searchResults = [];
+    searchSelectedIndex = 0;
+    suggestionsList.innerHTML = '';
+    searchSuggestions.classList.add('hidden');
+    state.searchUsingKeyboard = false; // Reset keyboard flag
+
+    // Reset header text
+    const suggestionsHeader = document.querySelector('.suggestions-header');
+    suggestionsHeader.textContent = 'Suggested matches:';
+
+    // Show search overlay
+    searchOverlay.classList.remove('hidden');
+
+    // Set up event listeners and get the fresh input element
+    const freshSearchInput = setupSearchListeners();
+
+    // Focus and select all text immediately
+    // Use setTimeout to ensure focus and selection happens after the overlay is fully visible
+    setTimeout(() => {
+        freshSearchInput.focus();
+        freshSearchInput.select(); // Select all text so user can type over it or press End to edit
+    }, 0);
+}
+
+function setupSearchListeners() {
+    // Get the current search input element
+    const currentSearchInput = document.getElementById('search-input');
+
+    // Remove all existing event listeners by cloning and replacing
+    const newSearchInput = currentSearchInput.cloneNode(true);
+    currentSearchInput.parentNode.replaceChild(newSearchInput, currentSearchInput);
+
+    // Add event listeners to the new element
+    newSearchInput.addEventListener('input', handleSearchInput);
+    newSearchInput.addEventListener('keydown', handleSearchKeydown);
+
+    // Return the new element so we can focus it
+    return newSearchInput;
+}
+
+async function handleSearchInput(e) {
+    const query = e.target.value.trim();
+
+    // Clear previous timeout
+    if (searchTimeout) {
+        clearTimeout(searchTimeout);
+    }
+
+    // If query is empty, hide suggestions
+    if (query.length === 0) {
+        searchSuggestions.classList.add('hidden');
+        searchResults = [];
+        return;
+    }
+
+    // Debounce search - wait 300ms after user stops typing
+    searchTimeout = setTimeout(async () => {
+        // Reset header back to suggestions mode
+        const suggestionsHeader = document.querySelector('.suggestions-header');
+        suggestionsHeader.textContent = 'Suggested matches:';
+
+        // Search for suggestions (limit to 8 results)
+        const result = await ipcRenderer.invoke('search-files', query, 8);
+
+        if (result.success && result.files.length > 0) {
+            searchResults = result.files;
+            searchSelectedIndex = 0;
+            renderSearchSuggestions();
+            searchSuggestions.classList.remove('hidden');
+        } else {
+            searchSuggestions.classList.add('hidden');
+            searchResults = [];
+        }
+    }, 300);
+}
+
+function renderSearchSuggestions() {
+    suggestionsList.innerHTML = '';
+
+    searchResults.forEach((file, index) => {
+        const item = document.createElement('div');
+        item.className = 'suggestion-item';
+        if (index === searchSelectedIndex) {
+            item.classList.add('selected');
+        }
+
+        // Add folder icon if it's a folder
+        if (file.mimeType === 'application/vnd.google-apps.folder') {
+            const iconSpan = document.createElement('span');
+            iconSpan.className = 'suggestion-icon';
+            iconSpan.textContent = '📁';
+            item.appendChild(iconSpan);
+        }
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'suggestion-name';
+        nameSpan.textContent = file.name;
+        nameSpan.title = file.name; // Full name on hover
+
+        const typeSpan = document.createElement('span');
+        typeSpan.className = 'suggestion-type';
+        typeSpan.textContent = getFileType(file.mimeType);
+
+        item.appendChild(nameSpan);
+        item.appendChild(typeSpan);
+
+        // Click handler
+        item.addEventListener('click', async () => {
+            await openSearchResult(file);
+            closeSearchDialog();
+        });
+
+        // Hover handler - only update selection if not using keyboard
+        item.addEventListener('mouseenter', () => {
+            // Don't override keyboard selection
+            if (!state.searchUsingKeyboard) {
+                searchSelectedIndex = index;
+                renderSearchSuggestions();
+            }
+        });
+
+        // Mouse move handler - clear keyboard flag when mouse moves
+        item.addEventListener('mousemove', () => {
+            state.searchUsingKeyboard = false;
+            searchSelectedIndex = index;
+            renderSearchSuggestions();
+        });
+
+        suggestionsList.appendChild(item);
+    });
+}
+
+async function handleSearchKeydown(e) {
+    if (e.key === 'Escape') {
+        e.preventDefault();
+        closeSearchDialog();
+    } else if (e.key === 'Tab') {
+        // Prevent Tab from switching panes while in search dialog
+        e.preventDefault();
+    } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const query = e.target.value.trim();
+
+        if (query.length === 0) {
+            return;
+        }
+
+        // If Shift+Enter, do a full search
+        if (e.shiftKey) {
+            performFullSearch(query);
+        } else {
+            // Regular Enter: If we have suggestions, open the selected one
+            if (searchResults.length > 0) {
+                const selectedFile = searchResults[searchSelectedIndex];
+                await openSearchResult(selectedFile);
+                closeSearchDialog();
+            } else {
+                // No suggestions yet, do a full search
+                performFullSearch(query);
+            }
+        }
+    } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        state.searchUsingKeyboard = true; // Mark that keyboard is being used
+        if (searchResults.length > 0) {
+            searchSelectedIndex = Math.min(searchResults.length - 1, searchSelectedIndex + 1);
+            renderSearchSuggestions();
+            scrollToSelectedSuggestion();
+        }
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        state.searchUsingKeyboard = true; // Mark that keyboard is being used
+        if (searchResults.length > 0) {
+            searchSelectedIndex = Math.max(0, searchSelectedIndex - 1);
+            renderSearchSuggestions();
+            scrollToSelectedSuggestion();
+        }
+    }
+}
+
+async function performFullSearch(query) {
+    // Show loading state
+    suggestionsList.innerHTML = '<div class="loading" style="padding: 10px; text-align: center;">Searching...</div>';
+    searchSuggestions.classList.remove('hidden');
+
+    // Perform full search with more results
+    const result = await ipcRenderer.invoke('search-files', query, 100);
+
+    if (result.success && result.files.length > 0) {
+        searchResults = result.files;
+        searchSelectedIndex = 0;
+
+        // Update header to show we're in full results mode
+        const suggestionsHeader = document.querySelector('.suggestions-header');
+        suggestionsHeader.textContent = `Search results (${result.files.length} found):`;
+
+        renderSearchSuggestions();
+
+        // Scroll to top of results
+        suggestionsList.scrollTop = 0;
+    } else {
+        suggestionsList.innerHTML = '<div style="padding: 10px; text-align: center; color: #FFFF00;">No results found</div>';
+    }
+}
+
+async function openSearchResult(file) {
+    // If it's a folder, navigate to it in the active pane
+    if (file.mimeType === 'application/vnd.google-apps.folder') {
+        const paneState = state[state.activePane + 'Pane'];
+
+        // Only navigate if we're in drive mode
+        if (paneState.viewMode === 'drive') {
+            // Save current state to folder stack
+            paneState.folderStack.push({
+                id: paneState.currentFolder,
+                selectedIndex: paneState.selectedIndex
+            });
+
+            // Navigate to the selected folder
+            paneState.currentFolder = file.id;
+            paneState.pathNames.push(file.name);
+            paneState.selectedIndex = -1; // Select parent (..) by default
+
+            await loadFiles(state.activePane);
+            updatePathDisplay();
+        } else {
+            // In recent/shared mode, just open in browser
+            const url = await ipcRenderer.invoke('get-file-url', file.id);
+            shell.openExternal(url);
+        }
+    } else {
+        // Open file in browser
+        const url = await ipcRenderer.invoke('get-file-url', file.id);
+        shell.openExternal(url);
+    }
+}
+
+function scrollToSelectedSuggestion() {
+    const selectedItem = suggestionsList.querySelector('.suggestion-item.selected');
+    if (selectedItem) {
+        selectedItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+}
+
+function closeSearchDialog() {
+    searchOverlay.classList.add('hidden');
+    // Don't clear the search input - keep it for next search
+    // searchInput.value = '';
+    searchResults = [];
+    searchSuggestions.classList.add('hidden');
 }
 
 // Start the app

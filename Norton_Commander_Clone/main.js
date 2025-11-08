@@ -6,7 +6,8 @@ const url = require('url');
 const fs = require('fs');
 
 // Simple token storage using filesystem
-const TOKEN_FILE = path.join(app.getPath('userData'), 'tokens.json');
+// Note: TOKEN_FILE path is determined after app is ready
+let TOKEN_FILE;
 
 function getTokens() {
   try {
@@ -42,15 +43,22 @@ function deleteTokens() {
 }
 
 // Load OAuth credentials
-const credentials = require('./client_secret_68079929091-9kj0qlt5qd227l1n4sb5jlho62plou0b.apps.googleusercontent.com.json');
-const { client_id, client_secret, redirect_uris } = credentials.web;
+let credentials, client_id, client_secret, redirect_uris, oauth2Client;
 
-// OAuth2 client
-const oauth2Client = new google.auth.OAuth2(
-  client_id,
-  client_secret,
-  redirect_uris[0]
-);
+try {
+  credentials = require('./client_secret_2_68079929091-9kj0qlt5qd227l1n4sb5jlho62plou0b.apps.googleusercontent.com.json');
+  ({ client_id, client_secret, redirect_uris } = credentials.web);
+
+  // OAuth2 client
+  oauth2Client = new google.auth.OAuth2(
+    client_id,
+    client_secret,
+    redirect_uris[0]
+  );
+} catch (error) {
+  console.error('Error loading OAuth credentials:', error);
+  console.error('Make sure client_secret_2_68079929091-9kj0qlt5qd227l1n4sb5jlho62plou0b.apps.googleusercontent.com.json exists');
+}
 
 // Scopes for Google Drive access
 const SCOPES = ['https://www.googleapis.com/auth/drive'];
@@ -76,6 +84,9 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // Initialize TOKEN_FILE path now that app is ready
+  TOKEN_FILE = path.join(app.getPath('userData'), 'tokens.json');
+
   createWindow();
 
   app.on('activate', function () {
@@ -153,11 +164,24 @@ ipcMain.handle('list-files', async (event, folderId = 'root') => {
     const response = await drive.files.list({
       q: `'${folderId}' in parents and trashed=false`,
       fields: 'files(id, name, mimeType, size, modifiedTime, parents)',
-      orderBy: 'folder,name',
       pageSize: 1000
     });
 
-    return { success: true, files: response.data.files };
+    // Sort: folders first (alphabetically), then files (alphabetically)
+    const files = response.data.files || [];
+    files.sort((a, b) => {
+      const aIsFolder = a.mimeType === 'application/vnd.google-apps.folder';
+      const bIsFolder = b.mimeType === 'application/vnd.google-apps.folder';
+
+      // Folders before files
+      if (aIsFolder && !bIsFolder) return -1;
+      if (!aIsFolder && bIsFolder) return 1;
+
+      // Both same type, sort alphabetically (case-insensitive)
+      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    });
+
+    return { success: true, files };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -234,6 +258,67 @@ ipcMain.handle('create-folder', async (event, name, parentId) => {
     });
 
     return { success: true, folder: response.data };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Handle listing recent files
+ipcMain.handle('list-recent-files', async () => {
+  try {
+    const drive = google.drive({ version: 'v3', auth: oauth2Client });
+
+    const response = await drive.files.list({
+      q: 'trashed=false',
+      fields: 'files(id, name, mimeType, size, modifiedTime, parents, owners)',
+      orderBy: 'viewedByMeTime desc',
+      pageSize: 100
+    });
+
+    return { success: true, files: response.data.files };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Handle listing shared files
+ipcMain.handle('list-shared-files', async () => {
+  try {
+    const drive = google.drive({ version: 'v3', auth: oauth2Client });
+
+    const response = await drive.files.list({
+      q: 'sharedWithMe and trashed=false',
+      fields: 'files(id, name, mimeType, size, modifiedTime, parents, owners)',
+      orderBy: 'sharedWithMeTime desc',
+      pageSize: 100
+    });
+
+    return { success: true, files: response.data.files };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Handle search files
+ipcMain.handle('search-files', async (event, query, limit = 10) => {
+  try {
+    const drive = google.drive({ version: 'v3', auth: oauth2Client });
+
+    // Build search query - escape single quotes in the search term
+    const escapedQuery = query.replace(/'/g, "\\'");
+
+    // Use fullText contains for better matching (includes file content and metadata)
+    // This matches Google Drive's native search behavior better
+    const searchQuery = `trashed=false and fullText contains '${escapedQuery}'`;
+
+    const response = await drive.files.list({
+      q: searchQuery,
+      fields: 'files(id, name, mimeType, size, modifiedTime, parents, owners)',
+      pageSize: limit
+      // No orderBy - uses Google's default relevance ranking
+    });
+
+    return { success: true, files: response.data.files };
   } catch (error) {
     return { success: false, error: error.message };
   }

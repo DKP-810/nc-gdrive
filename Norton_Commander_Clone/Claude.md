@@ -188,3 +188,123 @@ Build a desktop application that recreates the classic Norton Commander dual-pan
 - The app doesn't need to be a full replacement for Google Drive web interface
 - Prioritize the core file management operations that Norton Commander was famous for
 - Keep the code clean and maintainable for future enhancements
+
+---
+
+## Current Implementation Status (Updated: 2025-11-08)
+
+### ✅ Completed Features
+
+**Core Functionality:**
+- Full dual-pane file browser with keyboard navigation
+- Google OAuth2 authentication with token persistence
+- F5 Copy, F6 Move, F7 Mkdir, F8 Delete operations
+- F9 Search - Google Drive search with live suggestions
+- Tab to switch panes, Arrow keys for navigation
+- Enter to open files/folders, Backspace to go up
+- PageUp/PageDown for quick scrolling
+- F10 to quit
+
+**View Modes (F2):**
+- **Main Drive** (blue theme) - Browse normal Google Drive folders
+- **Recent Files** (yellow theme) - Shows recently viewed files
+- **Shared With Me** (green theme) - Shows files shared by others
+- Each pane can independently switch between view modes
+- Color-coded panes indicate current view mode
+- Path display updates (Drive:\, Recent:\, Shared:\)
+
+**Search (F9):**
+- Google Drive search with live suggestions dropdown
+- Suggestions appear as you type (300ms debounce)
+- Shows up to 8 suggested matches before hitting Enter
+- Arrow keys to navigate suggestions
+- Click or press Enter to open selected file
+- Press Enter without selection for full search (up to 100 results)
+- Searches both file names and content
+- Esc to cancel search
+
+**Owner Column:**
+- Automatically shown in Recent and Shared views
+- Displays file/folder owner name
+- Small font (11px) to save space
+- Truncates with ellipsis for long names
+- Full name shown on hover
+
+**File Sorting:**
+- Main Drive view: Folders alphabetically first, then files alphabetically
+- Case-insensitive sorting using `localeCompare`
+
+**UI/UX:**
+- Authentic DOS blue aesthetic with cyan/yellow accents
+- Modal dialogs block interaction (DOS-style)
+- Splash screen on right pane at startup
+- Status bar shows file details on selection
+- Function key bar at bottom
+- Loading indicators during API calls
+
+### 🔧 Technical Details
+
+**Files:**
+- `main.js` - Electron main process, Google Drive API handlers
+- `renderer.js` - UI logic, keyboard handlers, file rendering
+- `index.html` - Main layout structure
+- `styles.css` - DOS styling and color themes
+- `client_secret_*.json` - OAuth credentials (gitignored)
+
+**API Handlers:**
+- `list-files` - List files in a folder (with client-side sorting)
+- `list-recent-files` - Recent files with owner info
+- `list-shared-files` - Shared files with owner info
+- `search-files` - Search Drive by filename and content
+- `copy-file`, `move-file`, `delete-file` - File operations
+- `create-folder` - Make new directory
+- `get-file-url` - Get Google Drive web URL
+
+**State Management:**
+- Each pane tracks: currentFolder, files, selectedIndex, folderStack, pathNames, viewMode
+- Active pane highlighted with brighter border
+- View mode persists per-pane
+
+### 🚧 Known Limitations
+
+- F3 PullDn not implemented (reserved for future pull-down menu)
+- F4 Edit not implemented
+- No multi-file selection
+- Opens all files in browser (no inline preview)
+- No offline/sync functionality
+- Limited to 100 files in Recent/Shared views (API pageSize)
+- Search limited to 100 results for full search
+
+### 📝 Setup Notes
+
+**Requirements:**
+- Node.js (tested with v24.11.0)
+- Python 3.13 for other projects (not needed here)
+- Google Cloud Project with Drive API enabled
+- OAuth 2.0 credentials (Web application type)
+
+**Installation:**
+```bash
+cd d:\Claude\projects\Norton_Commander_Clone
+npm install
+```
+
+**Running:**
+```bash
+npm start
+```
+
+**First Time Setup:**
+1. Download OAuth credentials from Google Cloud Console
+2. Save as `client_secret_*.json` in project root
+3. File is gitignored for security
+4. Update `main.js:45` if filename differs
+5. First run will open browser for OAuth consent
+
+### 🎯 Next Priorities
+
+1. **Pull-down Menu (F3)** - Implement menu system for advanced options
+2. **File Details** - Show metadata in a dialog
+3. **Better Error Handling** - More informative error messages
+4. **Refresh Key** - Manual refresh without reloading view
+5. **Multi-select** - Select multiple files for batch operations
