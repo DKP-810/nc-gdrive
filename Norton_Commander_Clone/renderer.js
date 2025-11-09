@@ -46,6 +46,7 @@ const suggestionsList = document.getElementById('suggestions-list');
 // Initialize app
 async function init() {
     setupKeyboardListeners();
+    setupDragAndDrop();
 
     // Try to authenticate
     const authStatus = document.querySelector('.auth-status');
@@ -285,6 +286,50 @@ function renderFiles(pane) {
             paneState.selectedIndex = index;
             handleEnter();
         });
+
+        // Make file items draggable (but not folders or parent directory)
+        if (file.mimeType !== 'application/vnd.google-apps.folder') {
+            item.draggable = true;
+
+            let downloadedPath = null;
+            let isDownloading = false;
+
+            // Pre-download file on mousedown
+            item.addEventListener('mousedown', async (e) => {
+                if (isDownloading || downloadedPath) return;
+
+                isDownloading = true;
+                console.log(`Pre-downloading ${file.name} for potential drag...`);
+
+                const result = await ipcRenderer.invoke('download-file-for-drag', file.id, file.name);
+
+                if (result.success) {
+                    downloadedPath = result.path;
+                    console.log(`Pre-downloaded to: ${downloadedPath}`);
+                } else {
+                    console.error(`Failed to pre-download: ${result.error}`);
+                }
+                isDownloading = false;
+            });
+
+            item.addEventListener('dragstart', (e) => {
+                if (!downloadedPath) {
+                    console.log('File not ready for drag yet');
+                    e.preventDefault();
+                    return;
+                }
+
+                console.log(`Starting drag for ${file.name} from ${downloadedPath}`);
+
+                // Use Electron's startDrag
+                ipcRenderer.invoke('start-drag', downloadedPath);
+            });
+
+            // Clean up downloaded file when drag ends
+            item.addEventListener('dragend', () => {
+                downloadedPath = null;
+            });
+        }
 
         listElement.appendChild(item);
     });
@@ -1292,6 +1337,90 @@ function closeSearchDialog() {
     // searchInput.value = '';
     searchResults = [];
     searchSuggestions.classList.add('hidden');
+}
+
+// Drag and Drop functionality
+function setupDragAndDrop() {
+    const panes = [
+        { element: leftList, pane: 'left' },
+        { element: rightList, pane: 'right' }
+    ];
+
+    panes.forEach(({ element, pane }) => {
+        // Prevent default drag behaviors
+        element.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Only show visual feedback if in drive mode
+            const paneState = state[pane + 'Pane'];
+            if (paneState.viewMode === 'drive') {
+                element.classList.add('drag-over');
+            }
+        });
+
+        element.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            element.classList.remove('drag-over');
+        });
+
+        element.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            element.classList.remove('drag-over');
+
+            console.log('Drop event fired!');
+
+            const paneState = state[pane + 'Pane'];
+
+            // Only allow drops in drive mode
+            if (paneState.viewMode !== 'drive') {
+                console.log('Not in drive mode, ignoring drop');
+                return;
+            }
+
+            const files = e.dataTransfer.files;
+            console.log(`Dropped ${files.length} files`);
+
+            if (files.length > 0) {
+                // Upload files to current folder
+                const parentId = paneState.currentFolder;
+                console.log(`Uploading to folder: ${parentId}`);
+
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+
+                    console.log(`Uploading ${file.name}...`);
+
+                    try {
+                        // Read file as ArrayBuffer
+                        const arrayBuffer = await file.arrayBuffer();
+                        const buffer = Buffer.from(arrayBuffer);
+
+                        console.log(`Read ${buffer.length} bytes from ${file.name}`);
+
+                        // Upload the file buffer
+                        const result = await ipcRenderer.invoke('upload-file-buffer', file.name, buffer, parentId);
+
+                        if (result.success) {
+                            console.log(`Successfully uploaded ${file.name}`);
+                        } else {
+                            console.error(`Failed to upload ${file.name}: ${result.error}`);
+                            alert(`Failed to upload ${file.name}: ${result.error}`);
+                        }
+                    } catch (error) {
+                        console.error(`Exception uploading ${file.name}:`, error);
+                        alert(`Exception uploading ${file.name}: ${error.message}`);
+                    }
+                }
+
+                // Reload the pane to show new files
+                console.log('Reloading pane...');
+                await loadFiles(pane);
+            }
+        });
+    });
 }
 
 // Start the app

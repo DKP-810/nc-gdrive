@@ -191,7 +191,7 @@ Build a desktop application that recreates the classic Norton Commander dual-pan
 
 ---
 
-## Current Implementation Status (Updated: 2025-11-08)
+## Current Implementation Status (Updated: 2025-11-09)
 
 ### ✅ Completed Features
 
@@ -217,11 +217,19 @@ Build a desktop application that recreates the classic Norton Commander dual-pan
 - Google Drive search with live suggestions dropdown
 - Suggestions appear as you type (300ms debounce)
 - Shows up to 8 suggested matches before hitting Enter
-- Arrow keys to navigate suggestions
-- Click or press Enter to open selected file
-- Press Enter without selection for full search (up to 100 results)
+- Arrow keys to navigate suggestions (keyboard takes precedence over mouse)
+- Click or press Enter to open selected file/folder
+- Folders selected from search open in the active pane
+- Shift+Enter for full search results (up to 100 results)
 - Searches both file names and content
+- Previous search preserved and auto-selected when reopening
 - Esc to cancel search
+
+**Folder Icons:**
+- Visual folder icon (📁) appears next to all folders
+- Consistent across all view modes (Drive, Recent, Shared, Search)
+- Subtle styling with 0.8 opacity to match DOS aesthetic
+- Only folders show icons, files do not
 
 **Owner Column:**
 - Automatically shown in Recent and Shared views
@@ -251,6 +259,18 @@ Build a desktop application that recreates the classic Norton Commander dual-pan
 - `styles.css` - DOS styling and color themes
 - `client_secret_*.json` - OAuth credentials (gitignored)
 
+**Drag and Drop:**
+- **Drag IN**: Drag files from Windows Explorer into either pane to upload to Google Drive
+  - Visual feedback with cyan dashed border when dragging over pane
+  - Only works in Drive mode (not Recent/Shared views)
+  - Files uploaded to current folder in that pane
+  - Pane auto-refreshes after upload
+  - Supports multiple files at once
+- **Drag OUT**: *In progress - not fully functional yet*
+  - Files marked as draggable (not folders)
+  - Pre-download on mousedown for drag preparation
+  - Intended to allow dragging files from NC to Windows Explorer
+
 **API Handlers:**
 - `list-files` - List files in a folder (with client-side sorting)
 - `list-recent-files` - Recent files with owner info
@@ -259,6 +279,9 @@ Build a desktop application that recreates the classic Norton Commander dual-pan
 - `copy-file`, `move-file`, `delete-file` - File operations
 - `create-folder` - Make new directory
 - `get-file-url` - Get Google Drive web URL
+- `upload-file-buffer` - Upload files from drag-and-drop (reads as buffer)
+- `download-file-for-drag` - Download file to temp for drag-out (in progress)
+- `start-drag` - Initiate drag operation to external apps (in progress)
 
 **State Management:**
 - Each pane tracks: currentFolder, files, selectedIndex, folderStack, pathNames, viewMode
@@ -274,6 +297,9 @@ Build a desktop application that recreates the classic Norton Commander dual-pan
 - No offline/sync functionality
 - Limited to 100 files in Recent/Shared views (API pageSize)
 - Search limited to 100 results for full search
+- **Drag OUT not working** - Files can be dragged but cannot be dropped to external locations (red circle/slash appears)
+  - Issue with Electron's `webContents.startDrag()` implementation
+  - Pre-download logic in place but drag-out needs different approach
 
 ### 📝 Setup Notes
 
@@ -303,8 +329,22 @@ npm start
 
 ### 🎯 Next Priorities
 
-1. **Pull-down Menu (F3)** - Implement menu system for advanced options
-2. **File Details** - Show metadata in a dialog
-3. **Better Error Handling** - More informative error messages
-4. **Refresh Key** - Manual refresh without reloading view
-5. **Multi-select** - Select multiple files for batch operations
+1. **Fix Drag OUT** - Resolve issue with dragging files from NC to Windows Explorer
+2. **Pull-down Menu (F3)** - Implement menu system for advanced options
+3. **File Details** - Show metadata in a dialog
+4. **Better Error Handling** - More informative error messages
+5. **Refresh Key** - Manual refresh without reloading view
+6. **Multi-select** - Select multiple files for batch operations
+
+### 🚀 Recent Updates
+
+**2025-11-09:**
+- Added folder icons (📁) to all view modes
+- Implemented drag-and-drop upload (drag files IN from Windows Explorer)
+- Started drag-out implementation (not yet functional)
+- Updated search to open folders in active pane
+- Improved search UX (keyboard priority, preserved queries, auto-select)
+
+**2025-11-08:**
+- Implemented F9 Search with live suggestions
+- Swapped F3 and F9 labels (F9=Search, F3=PullDn for future use)

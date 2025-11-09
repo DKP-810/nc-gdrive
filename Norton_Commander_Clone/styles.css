@@ -211,6 +211,13 @@ body {
     overflow-y: auto;
     overflow-x: hidden;
     padding: 5px;
+    transition: background-color 0.2s;
+}
+
+.file-list.drag-over {
+    background-color: rgba(0, 255, 255, 0.1);
+    border: 2px dashed #00FFFF;
+    padding: 3px;
 }
 
 .file-item {

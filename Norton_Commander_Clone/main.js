@@ -323,3 +323,80 @@ ipcMain.handle('search-files', async (event, query, limit = 10) => {
     return { success: false, error: error.message };
   }
 });
+
+// Upload file to Google Drive from buffer
+ipcMain.handle('upload-file-buffer', async (event, fileName, fileBuffer, parentId = 'root') => {
+  try {
+    const drive = google.drive({ version: 'v3', auth: oauth2Client });
+    const { Readable } = require('stream');
+
+    const fileMetadata = {
+      name: fileName,
+      parents: [parentId]
+    };
+
+    // Convert buffer to stream
+    const bufferStream = new Readable();
+    bufferStream.push(fileBuffer);
+    bufferStream.push(null);
+
+    const media = {
+      body: bufferStream
+    };
+
+    const response = await drive.files.create({
+      requestBody: fileMetadata,
+      media: media,
+      fields: 'id, name, mimeType, size, modifiedTime, parents'
+    });
+
+    return { success: true, file: response.data };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Download file from Google Drive to temp directory for drag-out
+ipcMain.handle('download-file-for-drag', async (event, fileId, fileName) => {
+  try {
+    const drive = google.drive({ version: 'v3', auth: oauth2Client });
+    const os = require('os');
+
+    // Create temp file path
+    const tempDir = os.tmpdir();
+    const tempFilePath = path.join(tempDir, fileName);
+
+    // Download file
+    const dest = fs.createWriteStream(tempFilePath);
+
+    const response = await drive.files.get(
+      { fileId: fileId, alt: 'media' },
+      { responseType: 'stream' }
+    );
+
+    return new Promise((resolve, reject) => {
+      response.data
+        .on('end', () => {
+          resolve({ success: true, path: tempFilePath });
+        })
+        .on('error', (err) => {
+          reject(err);
+        })
+        .pipe(dest);
+    });
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Start drag operation for external file drop
+ipcMain.handle('start-drag', async (event, filePath) => {
+  const { webContents } = event.sender;
+
+  webContents.startDrag({
+    file: filePath,
+    icon: '' // Optional: could add an icon here
+  });
+
+  return { success: true };
+});
