@@ -3,6 +3,9 @@
 ## Project Overview
 Build a desktop application that recreates the classic Norton Commander dual-pane file manager interface for browsing and managing Google Drive files. The app should capture the authentic 1990s DOS aesthetic while providing modern Google Drive functionality.
 
+## Coding Principles
+Unless otherwise specified: DRY, YAGNI, KISS, Pragmatic. Ask questions for clarification. When doing a plan or research-like request, present your findings and halt for confirmation.
+
 ## Core Functionality
 
 ### File Operations

@@ -70,6 +70,7 @@ function createWindow() {
     width: 1200,
     height: 800,
     backgroundColor: '#0000AA',
+    icon: path.join(__dirname, 'NC_icon.ico'),
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false
@@ -399,4 +400,102 @@ ipcMain.handle('start-drag', async (event, filePath) => {
   });
 
   return { success: true };
+});
+
+// Sanitize filename to remove invalid Windows characters
+function sanitizeFilename(filename) {
+  // Replace invalid Windows filename characters: < > : " / \ | ? *
+  // Also replace newlines and tabs
+  return filename
+    .replace(/[<>:"/\\|?*\r\n\t]/g, '_')
+    .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+    .trim();
+}
+
+// Download regular file to Downloads folder
+ipcMain.handle('download-file', async (event, fileId, fileName) => {
+  try {
+    const drive = google.drive({ version: 'v3', auth: oauth2Client });
+
+    // Get Downloads folder path
+    const downloadsPath = app.getPath('downloads');
+    const sanitizedFileName = sanitizeFilename(fileName);
+    const filePath = path.join(downloadsPath, sanitizedFileName);
+
+    // Download file
+    const dest = fs.createWriteStream(filePath);
+
+    const response = await drive.files.get(
+      { fileId: fileId, alt: 'media' },
+      { responseType: 'stream' }
+    );
+
+    return new Promise((resolve, reject) => {
+      response.data
+        .on('end', () => {
+          resolve({ success: true, path: filePath });
+        })
+        .on('error', (err) => {
+          reject(err);
+        })
+        .pipe(dest);
+    });
+  } catch (error) {
+    console.error('Download error:', error);
+    throw new Error(error.message);
+  }
+});
+
+// Export Google Doc to specific format
+ipcMain.handle('export-google-doc', async (event, fileId, fileName, exportFormat) => {
+  try {
+    const drive = google.drive({ version: 'v3', auth: oauth2Client });
+
+    // Get Downloads folder path
+    const downloadsPath = app.getPath('downloads');
+
+    // Map export format to MIME type and file extension
+    const exportMimeTypes = {
+      'pdf': 'application/pdf',
+      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    };
+
+    const mimeType = exportMimeTypes[exportFormat];
+    if (!mimeType) {
+      throw new Error(`Unsupported export format: ${exportFormat}`);
+    }
+
+    // Remove any existing extension and add the new one
+    const baseFileName = fileName.replace(/\.[^/.]+$/, '');
+    const sanitizedBaseFileName = sanitizeFilename(baseFileName);
+    const exportFileName = `${sanitizedBaseFileName}.${exportFormat}`;
+    const filePath = path.join(downloadsPath, exportFileName);
+
+    // Export file
+    const dest = fs.createWriteStream(filePath);
+
+    const response = await drive.files.export(
+      {
+        fileId: fileId,
+        mimeType: mimeType
+      },
+      { responseType: 'stream' }
+    );
+
+    return new Promise((resolve, reject) => {
+      response.data
+        .on('end', () => {
+          resolve({ success: true, path: filePath });
+        })
+        .on('error', (err) => {
+          reject(err);
+        })
+        .pipe(dest);
+    });
+  } catch (error) {
+    console.error('Export error:', error);
+    throw new Error(error.message);
+  }
 });

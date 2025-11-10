@@ -42,6 +42,8 @@ const searchOverlay = document.getElementById('search-overlay');
 const searchInput = document.getElementById('search-input');
 const searchSuggestions = document.getElementById('search-suggestions');
 const suggestionsList = document.getElementById('suggestions-list');
+const pulldownMenu = document.getElementById('pulldown-menu');
+const pulldownMenuContainer = document.getElementById('pulldown-menu-container');
 
 // Initialize app
 async function init() {
@@ -287,50 +289,6 @@ function renderFiles(pane) {
             handleEnter();
         });
 
-        // Make file items draggable (but not folders or parent directory)
-        if (file.mimeType !== 'application/vnd.google-apps.folder') {
-            item.draggable = true;
-
-            let downloadedPath = null;
-            let isDownloading = false;
-
-            // Pre-download file on mousedown
-            item.addEventListener('mousedown', async (e) => {
-                if (isDownloading || downloadedPath) return;
-
-                isDownloading = true;
-                console.log(`Pre-downloading ${file.name} for potential drag...`);
-
-                const result = await ipcRenderer.invoke('download-file-for-drag', file.id, file.name);
-
-                if (result.success) {
-                    downloadedPath = result.path;
-                    console.log(`Pre-downloaded to: ${downloadedPath}`);
-                } else {
-                    console.error(`Failed to pre-download: ${result.error}`);
-                }
-                isDownloading = false;
-            });
-
-            item.addEventListener('dragstart', (e) => {
-                if (!downloadedPath) {
-                    console.log('File not ready for drag yet');
-                    e.preventDefault();
-                    return;
-                }
-
-                console.log(`Starting drag for ${file.name} from ${downloadedPath}`);
-
-                // Use Electron's startDrag
-                ipcRenderer.invoke('start-drag', downloadedPath);
-            });
-
-            // Clean up downloaded file when drag ends
-            item.addEventListener('dragend', () => {
-                downloadedPath = null;
-            });
-        }
-
         listElement.appendChild(item);
     });
 
@@ -446,6 +404,11 @@ function setupKeyboardListeners() {
             return; // Let search dialog handle its own keyboard events
         }
 
+        // Check if pulldown menu is open - if so, don't handle main screen keys
+        if (!pulldownMenu.classList.contains('hidden')) {
+            return; // Let pulldown menu handle its own keyboard events
+        }
+
         // Main screen keyboard handling
         if (!mainScreen.classList.contains('hidden')) {
             handleMainScreenKeys(e);
@@ -535,6 +498,11 @@ function handleMainScreenKeys(e) {
         case 'F2':
             e.preventDefault();
             handleViewModeMenu();
+            break;
+
+        case 'F3':
+            e.preventDefault();
+            handlePulldownMenu();
             break;
 
         case 'F10':
@@ -974,6 +942,269 @@ function updatePaneColors() {
         rightPane.classList.add('active');
     }
     rightPane.classList.add(`mode-${rightPaneState.viewMode}`);
+}
+
+// Google Docs MIME types
+const GOOGLE_DOC_MIME_TYPES = {
+    'application/vnd.google-apps.document': { name: 'Google Doc', exports: ['pdf', 'docx'] },
+    'application/vnd.google-apps.spreadsheet': { name: 'Google Sheet', exports: ['pdf', 'xlsx'] },
+    'application/vnd.google-apps.presentation': { name: 'Google Slides', exports: ['pdf', 'pptx'] }
+};
+
+async function handlePulldownMenu() {
+    const paneState = state[state.activePane + 'Pane'];
+
+    // Check if a file is selected (not on parent directory)
+    if (paneState.selectedIndex < 0 || paneState.files.length === 0) {
+        await showDialog('No Selection', 'Please select a file to access the menu.', ['OK']);
+        return;
+    }
+
+    const selectedFile = paneState.files[paneState.selectedIndex];
+
+    // Check if it's a Google Doc that needs format selection
+    const isGoogleDoc = GOOGLE_DOC_MIME_TYPES.hasOwnProperty(selectedFile.mimeType);
+
+    // Define main menu structure
+    const mainMenuItems = [
+        {
+            label: 'Download',
+            hasSubmenu: true,
+            submenu: isGoogleDoc ? [
+                {
+                    label: 'PDF',
+                    action: () => downloadFile(selectedFile, 'pdf')
+                },
+                {
+                    label: 'DOCX',
+                    action: () => downloadFile(selectedFile, 'docx')
+                }
+            ] : [
+                {
+                    label: 'Download File',
+                    action: () => downloadFile(selectedFile)
+                }
+            ]
+        }
+        // Add more menu items here in the future (e.g., Rename, Properties, etc.)
+    ];
+
+    // Show the nested menu system
+    await showNestedMenu('Menu', mainMenuItems);
+}
+
+// Nested menu system with support for submenus
+function showNestedMenu(title, menuItems) {
+    return new Promise((resolve) => {
+        const menuStack = []; // Stack of menu levels
+        let currentKeyHandler = null;
+
+        // Create a menu box
+        function createMenuBox(title, items, level) {
+            const box = document.createElement('div');
+            box.className = 'pulldown-menu-box';
+            box.dataset.level = level;
+
+            const titleDiv = document.createElement('div');
+            titleDiv.className = 'pulldown-menu-title';
+            titleDiv.textContent = title;
+            box.appendChild(titleDiv);
+
+            const itemsContainer = document.createElement('div');
+            itemsContainer.className = 'pulldown-menu-items';
+
+            items.forEach((item, index) => {
+                const menuItem = document.createElement('div');
+                menuItem.className = 'pulldown-menu-item';
+                menuItem.dataset.index = index;
+
+                const label = document.createElement('span');
+                label.className = 'menu-item-label';
+                label.textContent = item.label;
+                menuItem.appendChild(label);
+
+                // Add arrow for submenus
+                if (item.hasSubmenu) {
+                    const arrow = document.createElement('span');
+                    arrow.className = 'menu-item-arrow';
+                    arrow.textContent = '►';
+                    menuItem.appendChild(arrow);
+                }
+
+                itemsContainer.appendChild(menuItem);
+            });
+
+            box.appendChild(itemsContainer);
+            return box;
+        }
+
+        // Update which menu is active
+        function updateMenuActivity() {
+            const allBoxes = pulldownMenuContainer.querySelectorAll('.pulldown-menu-box');
+            allBoxes.forEach((box, idx) => {
+                if (idx === menuStack.length - 1) {
+                    box.classList.remove('inactive');
+                } else {
+                    box.classList.add('inactive');
+                }
+            });
+        }
+
+        // Navigate to a submenu
+        function openSubmenu(parentItem) {
+            const currentMenu = menuStack[menuStack.length - 1];
+            const selectedItem = currentMenu.items[currentMenu.selectedIndex];
+
+            if (!selectedItem.hasSubmenu) return;
+
+            const submenuBox = createMenuBox(selectedItem.label, selectedItem.submenu, menuStack.length);
+            pulldownMenuContainer.appendChild(submenuBox);
+
+            // Position the submenu relative to the parent menu
+            // Get parent menu box dimensions and position
+            const parentBox = currentMenu.box;
+            const parentRect = parentBox.getBoundingClientRect();
+            const containerRect = pulldownMenuContainer.getBoundingClientRect();
+
+            // Calculate position: to the right of parent, offset by a bit
+            const leftOffset = parentRect.width - 10; // Overlap by 10px for classic look
+            const topOffset = 0; // Align with top of parent
+
+            submenuBox.style.left = `${leftOffset}px`;
+            submenuBox.style.top = `${topOffset}px`;
+
+            menuStack.push({
+                box: submenuBox,
+                items: selectedItem.submenu,
+                selectedIndex: 0
+            });
+
+            updateMenuActivity();
+            updateSelection();
+            setupKeyHandler();
+        }
+
+        // Go back to parent menu
+        function closeSubmenu() {
+            if (menuStack.length <= 1) {
+                // At root menu, close everything
+                cleanup();
+                resolve();
+                return;
+            }
+
+            const currentMenu = menuStack.pop();
+            currentMenu.box.remove();
+
+            updateMenuActivity();
+            updateSelection();
+            setupKeyHandler();
+        }
+
+        // Update selection highlighting
+        function updateSelection() {
+            const currentMenu = menuStack[menuStack.length - 1];
+            const items = currentMenu.box.querySelectorAll('.pulldown-menu-item');
+
+            items.forEach((item, idx) => {
+                if (idx === currentMenu.selectedIndex) {
+                    item.classList.add('selected');
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+        }
+
+        // Set up keyboard handler for current menu level
+        function setupKeyHandler() {
+            // Remove old handler
+            if (currentKeyHandler) {
+                document.removeEventListener('keydown', currentKeyHandler);
+            }
+
+            const currentMenu = menuStack[menuStack.length - 1];
+
+            currentKeyHandler = (e) => {
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    currentMenu.selectedIndex = Math.min(currentMenu.items.length - 1, currentMenu.selectedIndex + 1);
+                    updateSelection();
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    currentMenu.selectedIndex = Math.max(0, currentMenu.selectedIndex - 1);
+                    updateSelection();
+                } else if (e.key === 'ArrowRight' || e.key === 'Enter') {
+                    e.preventDefault();
+                    const selectedItem = currentMenu.items[currentMenu.selectedIndex];
+
+                    if (selectedItem.hasSubmenu) {
+                        openSubmenu();
+                    } else if (selectedItem.action) {
+                        // Execute action and close all menus
+                        cleanup();
+                        selectedItem.action();
+                        resolve();
+                    }
+                } else if (e.key === 'ArrowLeft' || e.key === 'Escape') {
+                    e.preventDefault();
+                    closeSubmenu();
+                } else if (e.key === 'F3') {
+                    e.preventDefault();
+                    cleanup();
+                    resolve();
+                }
+            };
+
+            document.addEventListener('keydown', currentKeyHandler);
+        }
+
+        // Cleanup function
+        function cleanup() {
+            if (currentKeyHandler) {
+                document.removeEventListener('keydown', currentKeyHandler);
+            }
+            pulldownMenuContainer.innerHTML = '';
+            pulldownMenu.classList.add('hidden');
+        }
+
+        // Initialize with root menu
+        const rootBox = createMenuBox(title, menuItems, 0);
+        pulldownMenuContainer.innerHTML = '';
+        pulldownMenuContainer.appendChild(rootBox);
+
+        menuStack.push({
+            box: rootBox,
+            items: menuItems,
+            selectedIndex: 0
+        });
+
+        updateSelection();
+        setupKeyHandler();
+        pulldownMenu.classList.remove('hidden');
+    });
+}
+
+async function downloadFile(file, exportFormat = null) {
+    try {
+        // Show loading indicator
+        statusInfo.textContent = `Downloading ${file.name}...`;
+
+        if (exportFormat) {
+            // Google Doc export
+            await ipcRenderer.invoke('export-google-doc', file.id, file.name, exportFormat);
+        } else {
+            // Regular file download
+            await ipcRenderer.invoke('download-file', file.id, file.name);
+        }
+
+        statusInfo.textContent = `Downloaded: ${file.name}`;
+
+        // Show success dialog
+        await showDialog('Download Complete', `File downloaded to your Downloads folder:\n${file.name}`, ['OK']);
+    } catch (error) {
+        console.error('Download failed:', error);
+        await showDialog('Download Failed', `Failed to download ${file.name}\n\nError: ${error.message}`, ['OK']);
+    }
 }
 
 function showSelectionDialog(title, prompt, options, defaultIndex = 0) {
