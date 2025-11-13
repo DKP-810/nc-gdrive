@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# OAuth credentials (keep private!)
+client_secret_*.json
+
+# User data
+tokens.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+
+# Build artifacts
+dist/
+build/
+out/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Temporary files
+*.tmp
+*.temp
+nul
