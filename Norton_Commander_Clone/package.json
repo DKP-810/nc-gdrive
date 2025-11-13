@@ -1,0 +1,23 @@
+{
+  "name": "norton-commander-drive",
+  "version": "1.0.0",
+  "description": "Norton Commander clone for Google Drive with classic DOS aesthetic",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --enable-logging"
+  },
+  "keywords": [
+    "norton-commander",
+    "google-drive",
+    "file-manager",
+    "dos"
+  ],
+  "author": "",
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "electron": "^39.1.1",
+    "googleapis": "^165.0.0"
+  }
+}

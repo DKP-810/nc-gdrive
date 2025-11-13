@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Electron user data
+*.json.tokens
+tokens.json
+
+# OAuth credentials (keep these local only)
+client_secret_*.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+
+# Build outputs
+dist/
+build/
+out/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Temporary files
+nul

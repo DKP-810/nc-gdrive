@@ -1,0 +1,697 @@
+@font-face {
+    font-family: 'DOS';
+    src: local('Courier New'), local('Consolas'), local('monospace');
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'DOS', 'Courier New', monospace;
+    font-size: 16px;
+    background-color: #0000AA;
+    color: #FFFFFF;
+    overflow: hidden;
+    height: 100vh;
+}
+
+.screen {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* Auth Screen */
+.auth-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    text-align: center;
+}
+
+.auth-container h1 {
+    color: #FFFF00;
+    margin-bottom: 30px;
+    font-size: 24px;
+}
+
+.auth-container p {
+    color: #00FFFF;
+    font-size: 18px;
+}
+
+.auth-status {
+    margin-top: 20px;
+    color: #FFFFFF;
+}
+
+/* Main Screen */
+.app-title-bar {
+    background-color: #0000AA;
+    color: #00FFFF;
+    padding: 5px 10px;
+    text-align: center;
+    border-bottom: 2px solid #00FFFF;
+    font-weight: bold;
+}
+
+.panes-container {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    padding: 8px;
+    gap: 8px;
+}
+
+.pane {
+    flex: 0 0 50%;
+    width: 50%;
+    max-width: 50%;
+    display: flex;
+    flex-direction: column;
+    border: 5px double #5555FF;
+    background-color: #000088;
+    overflow: hidden;
+}
+
+.pane.active {
+    border-color: #00FFFF;
+}
+
+/* View mode colors - Drive (blue - default) */
+.pane.mode-drive {
+    border-color: #5555FF;
+    background-color: #000088;
+}
+
+.pane.mode-drive.active {
+    border-color: #00FFFF;
+}
+
+/* View mode colors - Shared (green) */
+.pane.mode-shared {
+    border-color: #00AA00;
+    background-color: #004400;
+}
+
+.pane.mode-shared.active {
+    border-color: #00FF00;
+}
+
+.pane.mode-shared .pane-header {
+    background-color: #00AA00;
+}
+
+.pane.mode-shared.active .pane-header {
+    background-color: #00FF00;
+}
+
+.pane.mode-shared .column-headers {
+    background-color: #004400;
+}
+
+.pane.mode-shared .file-list {
+    background-color: #004400;
+}
+
+/* View mode colors - Recent (yellow) */
+.pane.mode-recent {
+    border-color: #AAAA00;
+    background-color: #444400;
+}
+
+.pane.mode-recent.active {
+    border-color: #FFFF00;
+}
+
+.pane.mode-recent .pane-header {
+    background-color: #AAAA00;
+}
+
+.pane.mode-recent.active .pane-header {
+    background-color: #FFFF00;
+}
+
+.pane.mode-recent .column-headers {
+    background-color: #444400;
+}
+
+.pane.mode-recent .file-list {
+    background-color: #444400;
+}
+
+.pane-header {
+    background-color: #5555FF;
+    color: #000000;
+    padding: 3px 10px;
+    font-weight: bold;
+}
+
+.pane.active .pane-header {
+    background-color: #00FFFF;
+}
+
+.pane-path {
+    font-family: 'DOS', 'Courier New', monospace;
+    font-size: 14px;
+}
+
+.column-headers {
+    background-color: #000088;
+    color: #FFFF00;
+    padding: 3px 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #5555FF;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.header-name {
+    flex: 1;
+    margin-right: 10px;
+}
+
+.header-divider {
+    color: #5555FF;
+    margin: 0 5px;
+}
+
+.header-type {
+    width: 60px;
+    text-align: right;
+}
+
+.header-owner {
+    width: 100px;
+    text-align: right;
+    font-size: 12px;
+}
+
+/* Adjust layout when owner column is present */
+.column-headers.has-owner .header-name {
+    flex: 1;
+    margin-right: 10px;
+    min-width: 0;
+}
+
+.file-list {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 5px;
+    transition: background-color 0.2s;
+}
+
+.file-list.drag-over {
+    background-color: rgba(0, 255, 255, 0.1);
+    border: 2px dashed #00FFFF;
+    padding: 3px;
+}
+
+.file-item {
+    padding: 1px 8px;
+    cursor: pointer;
+    white-space: nowrap;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    line-height: 1.4;
+}
+
+.file-item:hover {
+    background-color: #0000DD;
+}
+
+.file-item.selected {
+    background-color: #00FFFF;
+    color: #000000;
+}
+
+.file-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-right: 10px;
+    min-width: 0;
+}
+
+.file-info {
+    flex-shrink: 0;
+    text-align: right;
+    width: 60px;
+    min-width: 60px;
+    max-width: 60px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #AAAAAA;
+    font-size: 13px;
+}
+
+.file-item.selected .file-info {
+    color: #000000;
+}
+
+.file-icon {
+    flex-shrink: 0;
+    margin-right: 8px;
+    font-size: 14px;
+    opacity: 0.8;
+}
+
+.file-owner {
+    flex-shrink: 0;
+    text-align: right;
+    width: 100px;
+    min-width: 100px;
+    max-width: 100px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #AAAAAA;
+    font-size: 11px;
+    margin-left: 5px;
+}
+
+.file-item.selected .file-owner {
+    color: #000000;
+}
+
+/* Adjust file name width when owner column is present */
+.file-item.has-owner .file-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-right: 10px;
+    min-width: 0;
+    max-width: calc(100% - 180px); /* Adjust based on Type (60px) + Owner (100px) + spacing */
+}
+
+/* Status Bar */
+.status-bar {
+    background-color: #000088;
+    color: #FFFF00;
+    padding: 5px 10px;
+    border-top: 1px solid #5555FF;
+    min-height: 30px;
+}
+
+/* Function Bar */
+.function-bar {
+    background-color: #000000;
+    color: #00FFFF;
+    padding: 5px;
+    display: flex;
+    justify-content: space-around;
+}
+
+.function-key {
+    padding: 2px 5px;
+}
+
+.key-num {
+    background-color: #00FFFF;
+    color: #000000;
+    padding: 0 3px;
+    margin-right: 2px;
+}
+
+/* Dialog */
+.dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.dialog-box {
+    background-color: #5555FF;
+    border: 3px solid #00FFFF;
+    padding: 20px;
+    min-width: 400px;
+    max-width: 600px;
+}
+
+.dialog-title {
+    color: #FFFF00;
+    font-weight: bold;
+    margin-bottom: 15px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #00FFFF;
+}
+
+.dialog-content {
+    color: #FFFFFF;
+    margin-bottom: 20px;
+    line-height: 1.5;
+}
+
+.dialog-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+}
+
+.dialog-button {
+    background-color: #000088;
+    color: #00FFFF;
+    border: 2px solid #00FFFF;
+    padding: 5px 15px;
+    cursor: pointer;
+    font-family: 'DOS', 'Courier New', monospace;
+    font-size: 16px;
+}
+
+.dialog-button:hover {
+    background-color: #00FFFF;
+    color: #000000;
+}
+
+.dialog-button:focus {
+    outline: 2px solid #FFFF00;
+}
+
+.dialog-input {
+    background-color: #000088;
+    color: #FFFFFF;
+    border: 2px solid #00FFFF;
+    padding: 5px;
+    font-family: 'DOS', 'Courier New', monospace;
+    font-size: 16px;
+    width: 100%;
+    margin-top: 10px;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 12px;
+}
+
+::-webkit-scrollbar-track {
+    background: #000088;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #5555FF;
+    border: 1px solid #00FFFF;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #00FFFF;
+}
+
+/* Loading indicator */
+.loading {
+    color: #FFFF00;
+    text-align: center;
+    padding: 20px;
+}
+
+/* Splash Screen */
+.splash-screen {
+    padding: 20px;
+    color: #00FFFF;
+    font-family: 'DOS', 'Courier New', monospace;
+    line-height: 1.6;
+}
+
+.splash-header {
+    color: #00FFFF;
+    font-weight: bold;
+    font-size: 16px;
+    margin-bottom: 5px;
+    text-align: center;
+}
+
+.splash-version {
+    color: #00FFFF;
+    text-align: center;
+    margin-bottom: 3px;
+}
+
+.splash-date {
+    color: #00FFFF;
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+.splash-divider {
+    border-bottom: 1px solid #5555FF;
+    margin: 15px 0;
+}
+
+.splash-section {
+    display: flex;
+    justify-content: space-between;
+    margin: 8px 0;
+}
+
+.splash-label {
+    color: #00FFFF;
+}
+
+.splash-value {
+    color: #FFFFFF;
+    text-align: right;
+}
+
+.splash-footer {
+    color: #00FFFF;
+    margin-top: 20px;
+    text-align: center;
+    font-style: italic;
+}
+
+/* Search Dialog */
+.search-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.search-box {
+    background-color: #000088;
+    border: 3px solid #00FFFF;
+    padding: 20px;
+    min-width: 600px;
+    max-width: 800px;
+}
+
+.search-title {
+    color: #FFFF00;
+    font-weight: bold;
+    margin-bottom: 15px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #00FFFF;
+    font-size: 16px;
+}
+
+.search-input-container {
+    margin-bottom: 15px;
+}
+
+.search-input {
+    background-color: #0000AA;
+    color: #FFFFFF;
+    border: 2px solid #00FFFF;
+    padding: 8px 10px;
+    font-family: 'DOS', 'Courier New', monospace;
+    font-size: 16px;
+    width: 100%;
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: #FFFF00;
+}
+
+.search-suggestions {
+    margin-bottom: 15px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.suggestions-header {
+    color: #00FFFF;
+    font-size: 13px;
+    margin-bottom: 8px;
+    padding-left: 5px;
+}
+
+.suggestions-list {
+    border: 2px solid #5555FF;
+    background-color: #000066;
+}
+
+.suggestion-item {
+    padding: 6px 10px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #0000AA;
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.suggestion-item:hover {
+    background-color: #0000DD;
+}
+
+.suggestion-item.selected {
+    background-color: #00FFFF;
+    color: #000000;
+}
+
+.suggestion-icon {
+    flex-shrink: 0;
+    margin-right: 8px;
+    font-size: 14px;
+    opacity: 0.8;
+}
+
+.suggestion-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-right: 10px;
+}
+
+.suggestion-type {
+    color: #AAAAAA;
+    font-size: 12px;
+    width: 60px;
+    text-align: right;
+}
+
+.suggestion-item.selected .suggestion-type {
+    color: #000000;
+}
+
+.search-footer {
+    color: #00FFFF;
+    font-size: 13px;
+    text-align: center;
+    padding-top: 10px;
+    border-top: 1px solid #5555FF;
+}
+
+.key-hint {
+    background-color: #00FFFF;
+    color: #000000;
+    padding: 2px 6px;
+    border-radius: 2px;
+    font-weight: bold;
+}
+
+/* Pulldown Menu */
+.pulldown-menu {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.pulldown-menu-container {
+    position: relative;
+}
+
+.pulldown-menu-box {
+    position: absolute;
+    background-color: #000088;
+    border: 3px double #00FFFF;
+    padding: 0;
+    min-width: 300px;
+    box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.5);
+}
+
+.pulldown-menu-box[data-level="0"] {
+    position: relative;
+}
+
+.pulldown-menu-box.inactive {
+    opacity: 0.7;
+}
+
+.pulldown-menu-title {
+    background-color: #00FFFF;
+    color: #000000;
+    font-weight: bold;
+    padding: 5px 10px;
+    text-align: center;
+    border-bottom: 2px solid #00FFFF;
+}
+
+.pulldown-menu-items {
+    padding: 5px 0;
+}
+
+.pulldown-menu-item {
+    padding: 6px 20px;
+    cursor: pointer;
+    color: #FFFFFF;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.pulldown-menu-item:hover {
+    background-color: #0000DD;
+}
+
+.pulldown-menu-item.selected {
+    background-color: #00FFFF;
+    color: #000000;
+}
+
+.pulldown-menu-item.disabled {
+    color: #666666;
+    cursor: not-allowed;
+}
+
+.pulldown-menu-item.disabled:hover {
+    background-color: transparent;
+}
+
+.menu-item-label {
+    flex: 1;
+}
+
+.menu-item-arrow {
+    margin-left: 10px;
+    color: inherit;
+}
