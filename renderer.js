@@ -52,6 +52,9 @@ const shareRoleSelect = document.getElementById('share-role-select');
 const sharePermissionsList = document.getElementById('share-permissions-list');
 const shareAddBtn = document.getElementById('share-add-btn');
 const shareCloseBtn = document.getElementById('share-close-btn');
+const shareCopyLinkBtn = document.getElementById('share-copy-link-btn');
+const shareGeneralAccessSelect = document.getElementById('share-general-access-select');
+const shareGeneralAccessDesc = document.getElementById('share-general-access-desc');
 
 // Initialize app
 async function init() {
@@ -727,8 +730,8 @@ async function showShareDialog(file) {
     shareOverlay.classList.remove('hidden');
     shareEmailInput.focus();
 
-    // Load current permissions
-    await loadFilePermissions(file.id);
+    // Load current permissions and general access
+    await loadFilePermissionsAndAccess(file.id);
 
     // Set up event handlers
     let emailSuggestionIndex = -1;
@@ -740,7 +743,9 @@ async function showShareDialog(file) {
         shareEmailInput.removeEventListener('input', emailInputHandler);
         shareEmailInput.removeEventListener('keydown', emailKeyHandler);
         shareAddBtn.removeEventListener('click', addClickHandler);
+        shareCopyLinkBtn.removeEventListener('click', copyLinkClickHandler);
         shareCloseBtn.removeEventListener('click', closeClickHandler);
+        shareGeneralAccessSelect.removeEventListener('change', generalAccessChangeHandler);
         document.removeEventListener('keydown', dialogKeyHandler);
         if (debounceTimer) clearTimeout(debounceTimer);
     };
@@ -848,7 +853,7 @@ async function showShareDialog(file) {
                 statusInfo.textContent = `Shared with ${email}`;
                 shareEmailInput.value = '';
                 shareEmailSuggestions.classList.add('hidden');
-                await loadFilePermissions(file.id);
+                await loadFilePermissionsAndAccess(file.id);
             } else {
                 await showDialog('Share Failed', result.error || 'Could not add permission.', ['OK']);
                 statusInfo.textContent = '';
@@ -856,6 +861,44 @@ async function showShareDialog(file) {
         } catch (error) {
             await showDialog('Share Error', `Error: ${error.message}`, ['OK']);
             statusInfo.textContent = '';
+        }
+    };
+
+    const copyLinkClickHandler = async () => {
+        try {
+            const url = `https://drive.google.com/file/d/${file.id}/view?usp=sharing`;
+            await navigator.clipboard.writeText(url);
+            statusInfo.textContent = 'Link copied to clipboard!';
+            setTimeout(() => {
+                statusInfo.textContent = '';
+            }, 2000);
+        } catch (error) {
+            await showDialog('Copy Failed', 'Could not copy link to clipboard.', ['OK']);
+        }
+    };
+
+    const generalAccessChangeHandler = async () => {
+        const accessType = shareGeneralAccessSelect.value;
+
+        try {
+            statusInfo.textContent = 'Updating general access...';
+            const result = await ipcRenderer.invoke('set-general-access', file.id, accessType);
+
+            if (result.success) {
+                statusInfo.textContent = 'General access updated';
+                updateGeneralAccessDescription(accessType);
+                setTimeout(() => {
+                    statusInfo.textContent = '';
+                }, 2000);
+            } else {
+                await showDialog('Update Failed', result.error || 'Could not update general access.', ['OK']);
+                statusInfo.textContent = '';
+                await loadFilePermissionsAndAccess(file.id); // Reload to reset
+            }
+        } catch (error) {
+            await showDialog('Update Error', `Error: ${error.message}`, ['OK']);
+            statusInfo.textContent = '';
+            await loadFilePermissionsAndAccess(file.id); // Reload to reset
         }
     };
 
@@ -888,16 +931,19 @@ async function showShareDialog(file) {
     shareEmailInput.addEventListener('input', emailInputHandler);
     shareEmailInput.addEventListener('keydown', emailKeyHandler);
     shareAddBtn.addEventListener('click', addClickHandler);
+    shareCopyLinkBtn.addEventListener('click', copyLinkClickHandler);
+    shareGeneralAccessSelect.addEventListener('change', generalAccessChangeHandler);
     shareCloseBtn.addEventListener('click', closeClickHandler);
     document.addEventListener('keydown', dialogKeyHandler);
 }
 
-async function loadFilePermissions(fileId) {
+async function loadFilePermissionsAndAccess(fileId) {
     try {
         const result = await ipcRenderer.invoke('get-permissions', fileId);
 
         if (result.success && result.permissions) {
-            displayPermissions(result.permissions);
+            displayPermissions(result.permissions, fileId);
+            updateGeneralAccessFromPermissions(result.permissions);
         } else {
             sharePermissionsList.innerHTML = '<div class="share-loading">Could not load permissions</div>';
         }
@@ -906,28 +952,136 @@ async function loadFilePermissions(fileId) {
     }
 }
 
-function displayPermissions(permissions) {
+function updateGeneralAccessFromPermissions(permissions) {
+    // Check for 'anyone' or 'domain' permissions
+    const anyonePermission = permissions.find(p => p.type === 'anyone');
+    const domainPermission = permissions.find(p => p.type === 'domain');
+
+    if (anyonePermission) {
+        shareGeneralAccessSelect.value = 'anyone';
+        updateGeneralAccessDescription('anyone');
+    } else if (domainPermission) {
+        shareGeneralAccessSelect.value = 'domain';
+        updateGeneralAccessDescription('domain');
+    } else {
+        shareGeneralAccessSelect.value = 'restricted';
+        updateGeneralAccessDescription('restricted');
+    }
+}
+
+function updateGeneralAccessDescription(accessType) {
+    if (accessType === 'restricted') {
+        shareGeneralAccessDesc.textContent = 'Only people with access can open';
+    } else if (accessType === 'domain') {
+        shareGeneralAccessDesc.textContent = 'Anyone at Howell Public Schools with the link';
+    } else if (accessType === 'anyone') {
+        shareGeneralAccessDesc.textContent = 'Anyone on the internet with the link';
+    }
+}
+
+function displayPermissions(permissions, fileId) {
     if (permissions.length === 0) {
         sharePermissionsList.innerHTML = '<div class="share-loading">No permissions set (private)</div>';
         return;
     }
 
     sharePermissionsList.innerHTML = '';
-    permissions.forEach(perm => {
+
+    // Filter out 'anyone' and 'domain' type permissions (they go in General Access)
+    const userPermissions = permissions.filter(p => p.type === 'user' || p.type === 'group');
+
+    userPermissions.forEach(perm => {
         const div = document.createElement('div');
         div.className = 'share-permission-item';
 
         const email = perm.emailAddress || perm.displayName || perm.type;
         const role = perm.role;
-        const roleText = role === 'reader' ? 'Viewer' :
-                        role === 'commenter' ? 'Commenter' :
-                        role === 'writer' ? 'Editor' :
-                        role === 'owner' ? 'Owner' : role;
+        const isOwner = role === 'owner';
 
-        div.innerHTML = `
-            <span class="share-permission-email">${email}</span>
-            <span class="share-permission-role">${roleText}</span>
-        `;
+        // Email/name span
+        const emailSpan = document.createElement('span');
+        emailSpan.className = 'share-permission-email';
+        emailSpan.textContent = email;
+        if (isOwner) {
+            emailSpan.textContent += ' (Owner)';
+        }
+
+        div.appendChild(emailSpan);
+
+        // Role dropdown or text for owner
+        if (isOwner) {
+            const ownerSpan = document.createElement('span');
+            ownerSpan.className = 'share-permission-role';
+            ownerSpan.textContent = 'Owner';
+            div.appendChild(ownerSpan);
+        } else {
+            const roleSelect = document.createElement('select');
+            roleSelect.className = 'share-permission-role-select';
+            roleSelect.innerHTML = `
+                <option value="reader" ${role === 'reader' ? 'selected' : ''}>Viewer</option>
+                <option value="commenter" ${role === 'commenter' ? 'selected' : ''}>Commenter</option>
+                <option value="writer" ${role === 'writer' ? 'selected' : ''}>Editor</option>
+                <option value="remove" class="remove-option">Remove access</option>
+            `;
+
+            roleSelect.addEventListener('change', async (e) => {
+                const newRole = e.target.value;
+
+                if (newRole === 'remove') {
+                    const confirmed = await showDialog(
+                        'Remove Access',
+                        `Remove access for ${email}?`,
+                        ['Yes', 'No']
+                    );
+
+                    if (confirmed === 'Yes') {
+                        try {
+                            statusInfo.textContent = `Removing access for ${email}...`;
+                            const result = await ipcRenderer.invoke('remove-permission', fileId, perm.id);
+
+                            if (result.success) {
+                                statusInfo.textContent = `Access removed for ${email}`;
+                                await loadFilePermissionsAndAccess(fileId);
+                            } else {
+                                await showDialog('Remove Failed', result.error || 'Could not remove permission.', ['OK']);
+                                statusInfo.textContent = '';
+                                await loadFilePermissionsAndAccess(fileId); // Reload to reset
+                            }
+                        } catch (error) {
+                            await showDialog('Remove Error', `Error: ${error.message}`, ['OK']);
+                            statusInfo.textContent = '';
+                            await loadFilePermissionsAndAccess(fileId); // Reload to reset
+                        }
+                    } else {
+                        // User cancelled, reload to reset dropdown
+                        await loadFilePermissionsAndAccess(fileId);
+                    }
+                } else {
+                    // Update role
+                    try {
+                        statusInfo.textContent = `Updating access for ${email}...`;
+                        const result = await ipcRenderer.invoke('update-permission', fileId, perm.id, newRole);
+
+                        if (result.success) {
+                            statusInfo.textContent = `Access updated for ${email}`;
+                            setTimeout(() => {
+                                statusInfo.textContent = '';
+                            }, 2000);
+                        } else {
+                            await showDialog('Update Failed', result.error || 'Could not update permission.', ['OK']);
+                            statusInfo.textContent = '';
+                            await loadFilePermissionsAndAccess(fileId); // Reload to reset
+                        }
+                    } catch (error) {
+                        await showDialog('Update Error', `Error: ${error.message}`, ['OK']);
+                        statusInfo.textContent = '';
+                        await loadFilePermissionsAndAccess(fileId); // Reload to reset
+                    }
+                }
+            });
+
+            div.appendChild(roleSelect);
+        }
 
         sharePermissionsList.appendChild(div);
     });

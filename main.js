@@ -325,6 +325,114 @@ ipcMain.handle('add-permission', async (event, fileId, email, role) => {
   }
 });
 
+// Handle update permission role
+ipcMain.handle('update-permission', async (event, fileId, permissionId, newRole) => {
+  try {
+    const drive = google.drive({ version: 'v3', auth: oauth2Client });
+
+    const response = await drive.permissions.update({
+      fileId: fileId,
+      permissionId: permissionId,
+      requestBody: {
+        role: newRole
+      },
+      fields: 'id, role'
+    });
+
+    return { success: true, permission: response.data };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Handle remove permission
+ipcMain.handle('remove-permission', async (event, fileId, permissionId) => {
+  try {
+    const drive = google.drive({ version: 'v3', auth: oauth2Client });
+
+    await drive.permissions.delete({
+      fileId: fileId,
+      permissionId: permissionId
+    });
+
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Handle get file metadata (to check general access)
+ipcMain.handle('get-file-metadata', async (event, fileId) => {
+  try {
+    const drive = google.drive({ version: 'v3', auth: oauth2Client });
+
+    const response = await drive.files.get({
+      fileId: fileId,
+      fields: 'id, name, permissions, capabilities'
+    });
+
+    return { success: true, file: response.data };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Handle set general access (anyone/domain/restricted)
+ipcMain.handle('set-general-access', async (event, fileId, accessType) => {
+  try {
+    const drive = google.drive({ version: 'v3', auth: oauth2Client });
+
+    // First, try to find existing 'anyone' or 'domain' permission
+    const permissionsResponse = await drive.permissions.list({
+      fileId: fileId,
+      fields: 'permissions(id, type, role)'
+    });
+
+    const permissions = permissionsResponse.data.permissions || [];
+    const anyonePermission = permissions.find(p => p.type === 'anyone');
+    const domainPermission = permissions.find(p => p.type === 'domain');
+
+    // Remove existing general access permissions
+    if (anyonePermission) {
+      await drive.permissions.delete({
+        fileId: fileId,
+        permissionId: anyonePermission.id
+      });
+    }
+    if (domainPermission) {
+      await drive.permissions.delete({
+        fileId: fileId,
+        permissionId: domainPermission.id
+      });
+    }
+
+    // Add new permission based on access type
+    if (accessType === 'anyone') {
+      await drive.permissions.create({
+        fileId: fileId,
+        requestBody: {
+          type: 'anyone',
+          role: 'reader'
+        }
+      });
+    } else if (accessType === 'domain') {
+      await drive.permissions.create({
+        fileId: fileId,
+        requestBody: {
+          type: 'domain',
+          role: 'reader',
+          domain: 'howellschools.com' // TODO: Make this dynamic if needed
+        }
+      });
+    }
+    // If 'restricted', we just removed the general permissions above
+
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
 // Handle search contacts - searches both directory and personal contacts
 ipcMain.handle('search-contacts', async (event, query) => {
   try {

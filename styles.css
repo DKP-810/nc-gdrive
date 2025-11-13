@@ -879,3 +879,49 @@ body {
 .share-button:active {
     background-color: #FFFFFF;
 }
+
+.share-permission-role-select {
+    padding: 3px 8px;
+    background-color: #000088;
+    color: #00FFFF;
+    border: 1px solid #00FFFF;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.share-permission-role-select:focus {
+    outline: 2px solid #FFFF00;
+    outline-offset: 2px;
+}
+
+.share-permission-role-select .remove-option {
+    color: #FF0000;
+}
+
+.share-general-access {
+    margin-top: 10px;
+}
+
+.share-general-access-select {
+    width: 100%;
+    padding: 6px;
+    background-color: #000088;
+    color: #00FFFF;
+    border: 1px solid #00FFFF;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    margin-bottom: 8px;
+}
+
+.share-general-access-select:focus {
+    outline: 2px solid #FFFF00;
+    outline-offset: 2px;
+}
+
+.share-general-access-desc {
+    font-size: 11px;
+    color: #FFFF00;
+    font-style: italic;
+    margin-top: 5px;
+}

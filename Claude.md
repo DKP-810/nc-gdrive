@@ -253,7 +253,13 @@ Unless otherwise specified: DRY, YAGNI, KISS, Pragmatic. Ask questions for clari
   - Tab cycles: Input → OK → Cancel → Input (complete loop)
   - Proper keyboard isolation prevents background pane interaction
   - Auto-refreshes both panes when viewing same directory
-- **Share** - Placeholder for Phase 2 implementation
+- **Share** - Full sharing functionality with permissions management
+  - Add people with autocomplete (directory + personal contacts)
+  - Change user roles (Viewer/Commenter/Editor)
+  - Remove access for specific users
+  - General access controls (Restricted/Organization/Anyone with link)
+  - Copy link to clipboard
+  - Real-time permission updates
 - **File Organization** - Placeholder for Phase 4 implementation
 
 **UI/UX:**
@@ -292,11 +298,19 @@ Unless otherwise specified: DRY, YAGNI, KISS, Pragmatic. Ask questions for clari
 - `list-recent-files` - Recent files with owner info
 - `list-shared-files` - Shared files with owner info
 - `search-files` - Search Drive by filename and content
+- `search-contacts` - Dual-search (directory + personal contacts)
 - `copy-file`, `move-file`, `delete-file` - File operations
 - `rename-file` - Rename files and folders
 - `create-folder` - Make new directory
 - `get-file-url` - Get Google Drive web URL
+- `get-permissions` - Get file permissions list
+- `add-permission` - Share file with user
+- `update-permission` - Change user role
+- `remove-permission` - Remove user access
+- `set-general-access` - Set general access level
 - `upload-file-buffer` - Upload files from drag-and-drop (reads as buffer)
+- `download-file` - Download file to Downloads folder
+- `export-google-doc` - Export Google Docs to PDF/DOCX/etc
 - `download-file-for-drag` - Download file to temp for drag-out (in progress)
 - `start-drag` - Initiate drag operation to external apps (in progress)
 
@@ -346,14 +360,34 @@ npm start
 
 ### 🎯 Next Priorities
 
-1. **F4 Share Menu (Phase 2)** - Implement sharing functionality with permissions management
-2. **F4 File Organization (Phase 4)** - Implement file organization features
-3. **Fix Drag OUT** - Resolve issue with dragging files from NC to Windows Explorer
-4. **File Details** - Show metadata in a dialog
-5. **Better Error Handling** - More informative error messages
-6. **Multi-select** - Select multiple files for batch operations
+1. **F4 File Organization (Phase 4)** - Implement file organization features
+2. **Fix Drag OUT** - Resolve issue with dragging files from NC to Windows Explorer
+3. **File Details** - Show metadata in a dialog
+4. **Better Error Handling** - More informative error messages
+5. **Multi-select** - Select multiple files for batch operations
+6. **Sharing UX improvements** - Add group sharing, expiration dates, notification settings
 
 ### 🚀 Recent Updates
+
+**2025-11-13:**
+- **F4 Share Menu (Phase 2 Complete)** - Full sharing functionality implemented
+  - Directory contacts search with Google Workspace integration
+  - Interactive role management dropdowns (Viewer/Commenter/Editor)
+  - Remove access option directly in permissions list
+  - General access controls (Restricted/Organization/Anyone with link)
+  - Copy link to clipboard functionality
+  - Real-time permission updates with status feedback
+  - Smart detection of current general access state
+- **Enhanced People API integration**
+  - Added `searchDirectoryPeople` for organization contacts
+  - Added `searchContacts` for personal contacts
+  - Dual-search with directory contacts prioritized
+  - Increased suggestions to 10 results
+- **Permission management API handlers**
+  - `update-permission` - Change user roles
+  - `remove-permission` - Revoke access
+  - `set-general-access` - Manage file visibility
+  - `get-file-metadata` - Retrieve file details
 
 **2025-11-11:**
 - **F1 Refresh** - Added manual refresh key to reload current directory
