@@ -228,11 +228,50 @@ ipcMain.handle('move-file', async (event, fileId, newParentId, oldParentId) => {
   }
 });
 
-// Handle delete file
+// Handle delete file (moves to trash)
 ipcMain.handle('delete-file', async (event, fileId) => {
   try {
     const drive = google.drive({ version: 'v3', auth: oauth2Client });
 
+    // Move to trash instead of permanent delete
+    await drive.files.update({
+      fileId: fileId,
+      requestBody: {
+        trashed: true
+      }
+    });
+
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Handle restore file from trash
+ipcMain.handle('restore-file', async (event, fileId) => {
+  try {
+    const drive = google.drive({ version: 'v3', auth: oauth2Client });
+
+    // Restore from trash
+    await drive.files.update({
+      fileId: fileId,
+      requestBody: {
+        trashed: false
+      }
+    });
+
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Handle permanent delete file
+ipcMain.handle('delete-file-forever', async (event, fileId) => {
+  try {
+    const drive = google.drive({ version: 'v3', auth: oauth2Client });
+
+    // Permanent delete
     await drive.files.delete({
       fileId: fileId
     });
@@ -378,7 +417,7 @@ ipcMain.handle('get-file-metadata', async (event, fileId) => {
 });
 
 // Handle set general access (anyone/domain/restricted)
-ipcMain.handle('set-general-access', async (event, fileId, accessType) => {
+ipcMain.handle('set-general-access', async (event, fileId, accessType, role = 'reader') => {
   try {
     const drive = google.drive({ version: 'v3', auth: oauth2Client });
 
@@ -412,7 +451,7 @@ ipcMain.handle('set-general-access', async (event, fileId, accessType) => {
         fileId: fileId,
         requestBody: {
           type: 'anyone',
-          role: 'reader'
+          role: role
         }
       });
     } else if (accessType === 'domain') {
@@ -420,7 +459,7 @@ ipcMain.handle('set-general-access', async (event, fileId, accessType) => {
         fileId: fileId,
         requestBody: {
           type: 'domain',
-          role: 'reader',
+          role: role,
           domain: 'howellschools.com' // TODO: Make this dynamic if needed
         }
       });
@@ -578,6 +617,24 @@ ipcMain.handle('list-shared-files', async () => {
       q: 'sharedWithMe and trashed=false',
       fields: 'files(id, name, mimeType, size, modifiedTime, parents, owners)',
       orderBy: 'sharedWithMeTime desc',
+      pageSize: 100
+    });
+
+    return { success: true, files: response.data.files };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Handle listing trashed files
+ipcMain.handle('list-trashed-files', async () => {
+  try {
+    const drive = google.drive({ version: 'v3', auth: oauth2Client });
+
+    const response = await drive.files.list({
+      q: 'trashed=true',
+      fields: 'files(id, name, mimeType, size, modifiedTime, parents, owners)',
+      orderBy: 'modifiedTime desc',
       pageSize: 100
     });
 

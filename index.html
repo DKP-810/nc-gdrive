@@ -50,17 +50,17 @@
             <span id="status-info"></span>
         </div>
 
-        <div class="function-bar">
-            <span class="function-key"><span class="key-num">1</span>Refresh</span>
-            <span class="function-key"><span class="key-num">2</span>View</span>
-            <span class="function-key"><span class="key-num">3</span>PullDn</span>
-            <span class="function-key"><span class="key-num">4</span>Edit</span>
-            <span class="function-key"><span class="key-num">5</span>Copy</span>
-            <span class="function-key"><span class="key-num">6</span>Move</span>
-            <span class="function-key"><span class="key-num">7</span>Mkdir</span>
-            <span class="function-key"><span class="key-num">8</span>Delete</span>
-            <span class="function-key"><span class="key-num">9</span>Search</span>
-            <span class="function-key"><span class="key-num">10</span>Quit</span>
+        <div class="function-bar" id="function-bar">
+            <span class="function-key" id="f1-key"><span class="key-num">1</span>Refresh</span>
+            <span class="function-key" id="f2-key"><span class="key-num">2</span>View</span>
+            <span class="function-key" id="f3-key"><span class="key-num">3</span>PullDn</span>
+            <span class="function-key" id="f4-key"><span class="key-num">4</span>Edit</span>
+            <span class="function-key" id="f5-key"><span class="key-num">5</span>Copy</span>
+            <span class="function-key" id="f6-key"><span class="key-num">6</span>Move</span>
+            <span class="function-key" id="f7-key"><span class="key-num">7</span>Mkdir</span>
+            <span class="function-key" id="f8-key"><span class="key-num">8</span>Delete</span>
+            <span class="function-key" id="f9-key"><span class="key-num">9</span>Search</span>
+            <span class="function-key" id="f10-key"><span class="key-num">10</span>Quit</span>
         </div>
     </div>
 
@@ -104,13 +104,16 @@
                     <input type="text" id="share-email-input" class="share-email-input" placeholder="Enter email address..." />
                     <div id="share-email-suggestions" class="share-email-suggestions hidden"></div>
                 </div>
-                <div class="share-role-container">
-                    <label class="share-label">Role:</label>
-                    <select id="share-role-select" class="share-role-select">
-                        <option value="reader">Viewer</option>
-                        <option value="commenter">Commenter</option>
-                        <option value="writer">Editor</option>
-                    </select>
+                <div class="share-add-row">
+                    <div class="share-role-container">
+                        <label class="share-label">Role:</label>
+                        <select id="share-role-select" class="share-role-select">
+                            <option value="reader">Viewer</option>
+                            <option value="commenter">Commenter</option>
+                            <option value="writer">Editor</option>
+                        </select>
+                    </div>
+                    <button id="share-add-btn" class="share-add-person-btn">Add</button>
                 </div>
             </div>
 
@@ -124,11 +127,18 @@
             <div class="share-section">
                 <div class="share-section-title">General access</div>
                 <div class="share-general-access">
-                    <select id="share-general-access-select" class="share-general-access-select">
-                        <option value="restricted">Restricted</option>
-                        <option value="domain">Howell Public Schools</option>
-                        <option value="anyone">Anyone with the link</option>
-                    </select>
+                    <div class="share-general-access-row">
+                        <select id="share-general-access-select" class="share-general-access-select">
+                            <option value="restricted">Restricted</option>
+                            <option value="domain">Howell Public Schools</option>
+                            <option value="anyone">Anyone with the link</option>
+                        </select>
+                        <select id="share-general-access-role" class="share-general-access-role hidden">
+                            <option value="reader">Viewer</option>
+                            <option value="commenter">Commenter</option>
+                            <option value="writer">Editor</option>
+                        </select>
+                    </div>
                     <div id="share-general-access-desc" class="share-general-access-desc">
                         Only people with access can open
                     </div>
@@ -137,7 +147,7 @@
 
             <div class="share-buttons">
                 <button id="share-copy-link-btn" class="share-button">Copy Link</button>
-                <button id="share-add-btn" class="share-button">Add</button>
+                <button id="share-apply-btn" class="share-button share-button-primary">Apply Changes</button>
                 <button id="share-close-btn" class="share-button">Close</button>
             </div>
         </div>

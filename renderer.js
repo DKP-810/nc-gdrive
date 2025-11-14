@@ -12,7 +12,7 @@ const state = {
         selectedIndex: 0,
         folderStack: [],
         pathNames: [], // Stack of folder names for building path
-        viewMode: 'drive' // 'drive', 'recent', or 'shared'
+        viewMode: 'drive' // 'drive', 'recent', 'shared', or 'trash'
     },
     rightPane: {
         currentFolder: 'root',
@@ -21,7 +21,7 @@ const state = {
         selectedIndex: 0,
         folderStack: [],
         pathNames: [], // Stack of folder names for building path
-        viewMode: 'drive' // 'drive', 'recent', or 'shared'
+        viewMode: 'drive' // 'drive', 'recent', 'shared', or 'trash'
     }
 };
 
@@ -51,10 +51,13 @@ const shareEmailSuggestions = document.getElementById('share-email-suggestions')
 const shareRoleSelect = document.getElementById('share-role-select');
 const sharePermissionsList = document.getElementById('share-permissions-list');
 const shareAddBtn = document.getElementById('share-add-btn');
+const shareApplyBtn = document.getElementById('share-apply-btn');
 const shareCloseBtn = document.getElementById('share-close-btn');
 const shareCopyLinkBtn = document.getElementById('share-copy-link-btn');
 const shareGeneralAccessSelect = document.getElementById('share-general-access-select');
+const shareGeneralAccessRole = document.getElementById('share-general-access-role');
 const shareGeneralAccessDesc = document.getElementById('share-general-access-desc');
+const f6Key = document.getElementById('f6-key');
 
 // Initialize app
 async function init() {
@@ -162,6 +165,8 @@ async function loadFiles(pane) {
         result = await ipcRenderer.invoke('list-recent-files');
     } else if (paneState.viewMode === 'shared') {
         result = await ipcRenderer.invoke('list-shared-files');
+    } else if (paneState.viewMode === 'trash') {
+        result = await ipcRenderer.invoke('list-trashed-files');
     } else {
         // Default drive mode
         result = await ipcRenderer.invoke('list-files', paneState.currentFolder);
@@ -183,7 +188,7 @@ function renderFiles(pane) {
     const headersElement = pane === 'left' ? leftHeaders : rightHeaders;
 
     // Update column headers based on view mode
-    const showOwner = paneState.viewMode === 'recent' || paneState.viewMode === 'shared';
+    const showOwner = paneState.viewMode === 'recent' || paneState.viewMode === 'shared' || paneState.viewMode === 'trash';
     if (showOwner) {
         headersElement.innerHTML = `
             <span class="header-name">Name</span>
@@ -204,7 +209,7 @@ function renderFiles(pane) {
 
     listElement.innerHTML = '';
 
-    // Add parent directory entry if not at root (and not in recent/shared mode)
+    // Add parent directory entry if not at root (and not in recent/shared/trash mode)
     if (paneState.currentFolder !== 'root' && paneState.viewMode === 'drive') {
         const parentItem = document.createElement('div');
         parentItem.className = 'file-item parent';
@@ -493,7 +498,13 @@ function handleMainScreenKeys(e) {
 
         case 'F6':
             e.preventDefault();
-            handleMove();
+            // Check if active pane is in trash mode
+            const activePaneState = state[state.activePane + 'Pane'];
+            if (activePaneState.viewMode === 'trash') {
+                handleRestoreDelete();
+            } else {
+                handleMove();
+            }
             break;
 
         case 'F7':
@@ -655,6 +666,8 @@ function getPathPrefix(pane) {
             return 'Recent:\\';
         case 'shared':
             return 'Shared:\\';
+        case 'trash':
+            return 'Trash:\\';
         case 'drive':
         default:
             return 'Drive:\\';
@@ -713,9 +726,14 @@ async function handleRename(file) {
     }
 }
 
+// Global pending changes for share dialog (accessible to displayPermissions)
+let sharePendingChanges = null;
+let shareCurrentFileId = null;
+
 async function showShareDialog(file) {
     // Set the filename in the title
     shareFilename.textContent = file.name;
+    shareCurrentFileId = file.id;
 
     // Clear previous state
     shareEmailInput.value = '';
@@ -733,6 +751,15 @@ async function showShareDialog(file) {
     // Load current permissions and general access
     await loadFilePermissionsAndAccess(file.id);
 
+    // Track pending changes
+    sharePendingChanges = {
+        peopleToAdd: [],           // [{email, role}]
+        roleUpdates: [],           // [{permissionId, email, newRole}]
+        removals: [],              // [{permissionId, email}]
+        generalAccessChange: null  // {from, to} or null
+    };
+    const pendingChanges = sharePendingChanges;
+
     // Set up event handlers
     let emailSuggestionIndex = -1;
     let emailSuggestions = [];
@@ -744,10 +771,15 @@ async function showShareDialog(file) {
         shareEmailInput.removeEventListener('keydown', emailKeyHandler);
         shareAddBtn.removeEventListener('click', addClickHandler);
         shareCopyLinkBtn.removeEventListener('click', copyLinkClickHandler);
+        shareApplyBtn.removeEventListener('click', applyClickHandler);
         shareCloseBtn.removeEventListener('click', closeClickHandler);
         shareGeneralAccessSelect.removeEventListener('change', generalAccessChangeHandler);
         document.removeEventListener('keydown', dialogKeyHandler);
         if (debounceTimer) clearTimeout(debounceTimer);
+
+        // Clear global state
+        sharePendingChanges = null;
+        shareCurrentFileId = null;
     };
 
     const emailInputHandler = (e) => {
@@ -829,39 +861,43 @@ async function showShareDialog(file) {
         });
     };
 
-    const addClickHandler = async () => {
+    const addClickHandler = () => {
         const email = shareEmailInput.value.trim();
         const role = shareRoleSelect.value;
 
         if (!email) {
-            await showDialog('Invalid Email', 'Please enter an email address.', ['OK']);
+            statusInfo.textContent = 'Please enter an email address';
+            setTimeout(() => statusInfo.textContent = '', 2000);
             return;
         }
 
         // Basic email validation
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email)) {
-            await showDialog('Invalid Email', 'Please enter a valid email address.', ['OK']);
+            statusInfo.textContent = 'Invalid email address';
+            setTimeout(() => statusInfo.textContent = '', 2000);
             return;
         }
 
-        try {
-            statusInfo.textContent = `Sharing with ${email}...`;
-            const result = await ipcRenderer.invoke('add-permission', file.id, email, role);
+        // Add to pending changes
+        pendingChanges.peopleToAdd.push({ email, role });
 
-            if (result.success) {
-                statusInfo.textContent = `Shared with ${email}`;
-                shareEmailInput.value = '';
-                shareEmailSuggestions.classList.add('hidden');
-                await loadFilePermissionsAndAccess(file.id);
-            } else {
-                await showDialog('Share Failed', result.error || 'Could not add permission.', ['OK']);
-                statusInfo.textContent = '';
-            }
-        } catch (error) {
-            await showDialog('Share Error', `Error: ${error.message}`, ['OK']);
-            statusInfo.textContent = '';
-        }
+        // Clear input
+        shareEmailInput.value = '';
+        shareEmailSuggestions.classList.add('hidden');
+
+        // Show pending status
+        statusInfo.textContent = `Will add ${email} as ${role === 'reader' ? 'Viewer' : role === 'commenter' ? 'Commenter' : 'Editor'} (pending)`;
+        setTimeout(() => statusInfo.textContent = '', 2000);
+
+        // Visual feedback: Add a pending item to the list
+        const pendingDiv = document.createElement('div');
+        pendingDiv.className = 'share-permission-item share-pending-item';
+        pendingDiv.innerHTML = `
+            <span class="share-permission-email">${email} <em>(pending)</em></span>
+            <span class="share-permission-role">${role === 'reader' ? 'Viewer' : role === 'commenter' ? 'Commenter' : 'Editor'}</span>
+        `;
+        sharePermissionsList.appendChild(pendingDiv);
     };
 
     const copyLinkClickHandler = async () => {
@@ -877,28 +913,145 @@ async function showShareDialog(file) {
         }
     };
 
-    const generalAccessChangeHandler = async () => {
-        const accessType = shareGeneralAccessSelect.value;
+    const generalAccessChangeHandler = () => {
+        const newAccessType = shareGeneralAccessSelect.value;
+
+        // Show/hide role dropdown based on access type
+        if (newAccessType === 'anyone' || newAccessType === 'domain') {
+            shareGeneralAccessRole.classList.remove('hidden');
+        } else {
+            shareGeneralAccessRole.classList.add('hidden');
+        }
+
+        // Track the change
+        const newRole = shareGeneralAccessRole.value;
+        if (!sharePendingChanges.generalAccessChange) {
+            // Get current state from the actual permissions
+            const currentAccess = shareGeneralAccessSelect.dataset.originalValue || 'restricted';
+            const currentRole = shareGeneralAccessRole.dataset.originalValue || 'reader';
+            sharePendingChanges.generalAccessChange = {
+                from: currentAccess,
+                to: newAccessType,
+                fromRole: currentRole,
+                toRole: newRole
+            };
+        } else {
+            // Update the 'to' value
+            sharePendingChanges.generalAccessChange.to = newAccessType;
+            sharePendingChanges.generalAccessChange.toRole = newRole;
+        }
+
+        // Update description
+        updateGeneralAccessDescription(newAccessType, newRole);
+
+        // Show pending message
+        const roleText = newRole === 'reader' ? 'Viewer' : newRole === 'commenter' ? 'Commenter' : 'Editor';
+        if (newAccessType === 'anyone' || newAccessType === 'domain') {
+            statusInfo.textContent = `General access will change to ${newAccessType} (${roleText}) (pending)`;
+        } else {
+            statusInfo.textContent = `General access will change to ${newAccessType} (pending)`;
+        }
+        setTimeout(() => statusInfo.textContent = '', 2000);
+    };
+
+    const generalAccessRoleChangeHandler = () => {
+        const newAccessType = shareGeneralAccessSelect.value;
+        const newRole = shareGeneralAccessRole.value;
+
+        // Track the change
+        if (!sharePendingChanges.generalAccessChange) {
+            const currentAccess = shareGeneralAccessSelect.dataset.originalValue || 'restricted';
+            const currentRole = shareGeneralAccessRole.dataset.originalValue || 'reader';
+            sharePendingChanges.generalAccessChange = {
+                from: currentAccess,
+                to: newAccessType,
+                fromRole: currentRole,
+                toRole: newRole
+            };
+        } else {
+            sharePendingChanges.generalAccessChange.toRole = newRole;
+        }
+
+        // Update description
+        updateGeneralAccessDescription(newAccessType, newRole);
+
+        // Show pending message
+        const roleText = newRole === 'reader' ? 'Viewer' :
+                        newRole === 'commenter' ? 'Commenter' : 'Editor';
+        statusInfo.textContent = `Role will change to ${roleText} (pending)`;
+        setTimeout(() => statusInfo.textContent = '', 2000);
+    };
+
+    const applyClickHandler = async () => {
+        // Apply all pending changes
+        let hasChanges = false;
 
         try {
-            statusInfo.textContent = 'Updating general access...';
-            const result = await ipcRenderer.invoke('set-general-access', file.id, accessType);
+            // 1. Add people
+            if (sharePendingChanges.peopleToAdd.length > 0) {
+                hasChanges = true;
+                statusInfo.textContent = 'Adding people...';
+                for (const person of sharePendingChanges.peopleToAdd) {
+                    const result = await ipcRenderer.invoke('add-permission', shareCurrentFileId, person.email, person.role);
+                    if (!result.success) {
+                        await showDialog('Share Failed', `Could not add ${person.email}: ${result.error}`, ['OK']);
+                    }
+                }
+            }
 
-            if (result.success) {
-                statusInfo.textContent = 'General access updated';
-                updateGeneralAccessDescription(accessType);
-                setTimeout(() => {
-                    statusInfo.textContent = '';
-                }, 2000);
+            // 2. Update roles
+            if (sharePendingChanges.roleUpdates.length > 0) {
+                hasChanges = true;
+                statusInfo.textContent = 'Updating roles...';
+                for (const update of sharePendingChanges.roleUpdates) {
+                    const result = await ipcRenderer.invoke('update-permission', shareCurrentFileId, update.permissionId, update.newRole);
+                    if (!result.success) {
+                        await showDialog('Update Failed', `Could not update ${update.email}: ${result.error}`, ['OK']);
+                    }
+                }
+            }
+
+            // 3. Remove access
+            if (sharePendingChanges.removals.length > 0) {
+                hasChanges = true;
+                statusInfo.textContent = 'Removing access...';
+                for (const removal of sharePendingChanges.removals) {
+                    const result = await ipcRenderer.invoke('remove-permission', shareCurrentFileId, removal.permissionId);
+                    if (!result.success) {
+                        await showDialog('Remove Failed', `Could not remove ${removal.email}: ${result.error}`, ['OK']);
+                    }
+                }
+            }
+
+            // 4. Update general access
+            if (sharePendingChanges.generalAccessChange && sharePendingChanges.generalAccessChange.from !== sharePendingChanges.generalAccessChange.to) {
+                hasChanges = true;
+                statusInfo.textContent = 'Updating general access...';
+                const result = await ipcRenderer.invoke('set-general-access', shareCurrentFileId, sharePendingChanges.generalAccessChange.to, sharePendingChanges.generalAccessChange.toRole);
+                if (!result.success) {
+                    await showDialog('Update Failed', `Could not update general access: ${result.error}`, ['OK']);
+                }
+            }
+
+            if (hasChanges) {
+                statusInfo.textContent = 'All changes applied!';
+                setTimeout(() => statusInfo.textContent = '', 2000);
+
+                // Reload permissions
+                await loadFilePermissionsAndAccess(shareCurrentFileId);
+
+                // Clear pending changes
+                sharePendingChanges.peopleToAdd = [];
+                sharePendingChanges.roleUpdates = [];
+                sharePendingChanges.removals = [];
+                sharePendingChanges.generalAccessChange = null;
             } else {
-                await showDialog('Update Failed', result.error || 'Could not update general access.', ['OK']);
-                statusInfo.textContent = '';
-                await loadFilePermissionsAndAccess(file.id); // Reload to reset
+                statusInfo.textContent = 'No changes to apply';
+                setTimeout(() => statusInfo.textContent = '', 2000);
             }
         } catch (error) {
-            await showDialog('Update Error', `Error: ${error.message}`, ['OK']);
+            await showDialog('Apply Error', `Error applying changes: ${error.message}`, ['OK']);
             statusInfo.textContent = '';
-            await loadFilePermissionsAndAccess(file.id); // Reload to reset
         }
     };
 
@@ -912,13 +1065,26 @@ async function showShareDialog(file) {
             cleanup();
         } else if (e.key === 'Tab') {
             e.preventDefault();
-            // Tab cycling: Email Input → Role Select → Add Button → Close Button → Email Input
+            // Tab cycling: Email Input → Role Select → Add Button → General Access Select → General Access Role (if visible) → Copy Link → Apply Changes → Close → Email Input
             const focused = document.activeElement;
             if (focused === shareEmailInput) {
                 shareRoleSelect.focus();
             } else if (focused === shareRoleSelect) {
                 shareAddBtn.focus();
             } else if (focused === shareAddBtn) {
+                shareGeneralAccessSelect.focus();
+            } else if (focused === shareGeneralAccessSelect) {
+                // Check if role dropdown is visible
+                if (!shareGeneralAccessRole.classList.contains('hidden')) {
+                    shareGeneralAccessRole.focus();
+                } else {
+                    shareCopyLinkBtn.focus();
+                }
+            } else if (focused === shareGeneralAccessRole) {
+                shareCopyLinkBtn.focus();
+            } else if (focused === shareCopyLinkBtn) {
+                shareApplyBtn.focus();
+            } else if (focused === shareApplyBtn) {
                 shareCloseBtn.focus();
             } else if (focused === shareCloseBtn) {
                 shareEmailInput.focus();
@@ -932,9 +1098,21 @@ async function showShareDialog(file) {
     shareEmailInput.addEventListener('keydown', emailKeyHandler);
     shareAddBtn.addEventListener('click', addClickHandler);
     shareCopyLinkBtn.addEventListener('click', copyLinkClickHandler);
+    shareApplyBtn.addEventListener('click', applyClickHandler);
     shareGeneralAccessSelect.addEventListener('change', generalAccessChangeHandler);
+    shareGeneralAccessRole.addEventListener('change', generalAccessRoleChangeHandler);
     shareCloseBtn.addEventListener('click', closeClickHandler);
     document.addEventListener('keydown', dialogKeyHandler);
+}
+
+function cleanupShareDialog() {
+    shareAddBtn.removeEventListener('click', addClickHandler);
+    shareCopyLinkBtn.removeEventListener('click', copyLinkClickHandler);
+    shareApplyBtn.removeEventListener('click', applyClickHandler);
+    shareGeneralAccessSelect.removeEventListener('change', generalAccessChangeHandler);
+    shareGeneralAccessRole.removeEventListener('change', generalAccessRoleChangeHandler);
+    shareCloseBtn.removeEventListener('click', closeClickHandler);
+    document.removeEventListener('keydown', dialogKeyHandler);
 }
 
 async function loadFilePermissionsAndAccess(fileId) {
@@ -957,25 +1135,44 @@ function updateGeneralAccessFromPermissions(permissions) {
     const anyonePermission = permissions.find(p => p.type === 'anyone');
     const domainPermission = permissions.find(p => p.type === 'domain');
 
+    let currentAccess = 'restricted';
+    let currentRole = 'reader'; // Default role
+
     if (anyonePermission) {
+        currentAccess = 'anyone';
+        currentRole = anyonePermission.role || 'reader';
         shareGeneralAccessSelect.value = 'anyone';
-        updateGeneralAccessDescription('anyone');
+        shareGeneralAccessRole.value = currentRole;
+        shareGeneralAccessRole.classList.remove('hidden');
+        updateGeneralAccessDescription('anyone', currentRole);
     } else if (domainPermission) {
+        currentAccess = 'domain';
+        currentRole = domainPermission.role || 'reader';
         shareGeneralAccessSelect.value = 'domain';
-        updateGeneralAccessDescription('domain');
+        shareGeneralAccessRole.value = currentRole;
+        shareGeneralAccessRole.classList.remove('hidden');
+        updateGeneralAccessDescription('domain', currentRole);
     } else {
+        currentAccess = 'restricted';
         shareGeneralAccessSelect.value = 'restricted';
+        shareGeneralAccessRole.classList.add('hidden');
         updateGeneralAccessDescription('restricted');
     }
+
+    // Store original values for detecting changes
+    shareGeneralAccessSelect.dataset.originalValue = currentAccess;
+    shareGeneralAccessRole.dataset.originalValue = currentRole;
 }
 
-function updateGeneralAccessDescription(accessType) {
+function updateGeneralAccessDescription(accessType, role = 'reader') {
     if (accessType === 'restricted') {
         shareGeneralAccessDesc.textContent = 'Only people with access can open';
     } else if (accessType === 'domain') {
-        shareGeneralAccessDesc.textContent = 'Anyone at Howell Public Schools with the link';
+        const roleText = role === 'reader' ? 'can view' : role === 'commenter' ? 'can comment' : 'can edit';
+        shareGeneralAccessDesc.textContent = `Anyone at Howell Public Schools with the link ${roleText}`;
     } else if (accessType === 'anyone') {
-        shareGeneralAccessDesc.textContent = 'Anyone on the internet with the link';
+        const roleText = role === 'reader' ? 'can view' : role === 'commenter' ? 'can comment' : 'can edit';
+        shareGeneralAccessDesc.textContent = `Anyone on the internet with the link ${roleText}`;
     }
 }
 
@@ -1024,59 +1221,41 @@ function displayPermissions(permissions, fileId) {
                 <option value="remove" class="remove-option">Remove access</option>
             `;
 
-            roleSelect.addEventListener('change', async (e) => {
+            roleSelect.addEventListener('change', (e) => {
                 const newRole = e.target.value;
 
                 if (newRole === 'remove') {
-                    const confirmed = await showDialog(
-                        'Remove Access',
-                        `Remove access for ${email}?`,
-                        ['Yes', 'No']
+                    // Add to pending removals
+                    sharePendingChanges.removals.push({
+                        permissionId: perm.id,
+                        email: email
+                    });
+
+                    // Visual feedback
+                    div.classList.add('share-pending-removal');
+                    emailSpan.innerHTML = `${email} <em>(will be removed)</em>`;
+                    roleSelect.disabled = true;
+
+                    statusInfo.textContent = `Will remove access for ${email} (pending)`;
+                    setTimeout(() => statusInfo.textContent = '', 2000);
+                } else if (newRole !== role) {
+                    // Track role update
+                    // Remove any existing update for this permission
+                    sharePendingChanges.roleUpdates = sharePendingChanges.roleUpdates.filter(
+                        u => u.permissionId !== perm.id
                     );
 
-                    if (confirmed === 'Yes') {
-                        try {
-                            statusInfo.textContent = `Removing access for ${email}...`;
-                            const result = await ipcRenderer.invoke('remove-permission', fileId, perm.id);
+                    // Add new update
+                    sharePendingChanges.roleUpdates.push({
+                        permissionId: perm.id,
+                        email: email,
+                        newRole: newRole
+                    });
 
-                            if (result.success) {
-                                statusInfo.textContent = `Access removed for ${email}`;
-                                await loadFilePermissionsAndAccess(fileId);
-                            } else {
-                                await showDialog('Remove Failed', result.error || 'Could not remove permission.', ['OK']);
-                                statusInfo.textContent = '';
-                                await loadFilePermissionsAndAccess(fileId); // Reload to reset
-                            }
-                        } catch (error) {
-                            await showDialog('Remove Error', `Error: ${error.message}`, ['OK']);
-                            statusInfo.textContent = '';
-                            await loadFilePermissionsAndAccess(fileId); // Reload to reset
-                        }
-                    } else {
-                        // User cancelled, reload to reset dropdown
-                        await loadFilePermissionsAndAccess(fileId);
-                    }
-                } else {
-                    // Update role
-                    try {
-                        statusInfo.textContent = `Updating access for ${email}...`;
-                        const result = await ipcRenderer.invoke('update-permission', fileId, perm.id, newRole);
-
-                        if (result.success) {
-                            statusInfo.textContent = `Access updated for ${email}`;
-                            setTimeout(() => {
-                                statusInfo.textContent = '';
-                            }, 2000);
-                        } else {
-                            await showDialog('Update Failed', result.error || 'Could not update permission.', ['OK']);
-                            statusInfo.textContent = '';
-                            await loadFilePermissionsAndAccess(fileId); // Reload to reset
-                        }
-                    } catch (error) {
-                        await showDialog('Update Error', `Error: ${error.message}`, ['OK']);
-                        statusInfo.textContent = '';
-                        await loadFilePermissionsAndAccess(fileId); // Reload to reset
-                    }
+                    // Visual feedback
+                    const roleText = newRole === 'reader' ? 'Viewer' : newRole === 'commenter' ? 'Commenter' : 'Editor';
+                    statusInfo.textContent = `Will change ${email} to ${roleText} (pending)`;
+                    setTimeout(() => statusInfo.textContent = '', 2000);
                 }
             });
 
@@ -1167,8 +1346,8 @@ async function handleDelete() {
     if (!currentFile) return;
 
     const confirmed = await showDialog(
-        'Delete',
-        `Delete "${currentFile.name}"? This action cannot be undone!`,
+        'Move to Trash',
+        `Move "${currentFile.name}" to Trash?`,
         ['Yes', 'No']
     );
 
@@ -1177,11 +1356,57 @@ async function handleDelete() {
 
         if (result.success) {
             await loadFiles(state.activePane);
-            showDialog('Success', 'File deleted successfully!', ['OK']);
+            showDialog('Success', 'File moved to trash successfully!', ['OK']);
         } else {
-            showDialog('Error', `Failed to delete: ${result.error}`, ['OK']);
+            showDialog('Error', `Failed to move to trash: ${result.error}`, ['OK']);
         }
     }
+}
+
+async function handleRestoreDelete() {
+    const paneState = state[state.activePane + 'Pane'];
+    const currentFile = paneState.files[paneState.selectedIndex];
+
+    if (!currentFile) return;
+
+    // Show custom menu with Restore, Delete forever, and Cancel
+    const options = ['Restore', 'Delete forever', 'Cancel'];
+    const selected = await showSelectionDialog(
+        'Trash Actions',
+        `"${currentFile.name}"`,
+        options,
+        0  // Default to "Restore"
+    );
+
+    if (selected === 'Restore') {
+        const result = await ipcRenderer.invoke('restore-file', currentFile.id);
+
+        if (result.success) {
+            await loadFiles(state.activePane);
+            showDialog('Success', 'File restored successfully!', ['OK']);
+        } else {
+            showDialog('Error', `Failed to restore: ${result.error}`, ['OK']);
+        }
+    } else if (selected === 'Delete forever') {
+        // Confirm permanent deletion
+        const confirmed = await showDialog(
+            'Permanent Delete',
+            `Permanently delete "${currentFile.name}"? This CANNOT be undone!`,
+            ['Yes', 'No']
+        );
+
+        if (confirmed === 'Yes') {
+            const result = await ipcRenderer.invoke('delete-file-forever', currentFile.id);
+
+            if (result.success) {
+                await loadFiles(state.activePane);
+                showDialog('Success', 'File permanently deleted!', ['OK']);
+            } else {
+                showDialog('Error', `Failed to delete: ${result.error}`, ['OK']);
+            }
+        }
+    }
+    // If "Cancel" was selected, do nothing
 }
 
 async function handleMkdir() {
@@ -1387,17 +1612,19 @@ async function handleViewModeMenu() {
     const currentMode = paneState.viewMode;
 
     // Show selection menu with current mode pre-selected
-    const options = ['Main Drive', 'Recent Files', 'Shared With Me'];
+    const options = ['Main Drive', 'Recent Files', 'Shared With Me', 'Trash'];
     const modeMap = {
         'Main Drive': 'drive',
         'Recent Files': 'recent',
-        'Shared With Me': 'shared'
+        'Shared With Me': 'shared',
+        'Trash': 'trash'
     };
 
     // Find current selection index
     let defaultIndex = 0;
     if (currentMode === 'recent') defaultIndex = 1;
     else if (currentMode === 'shared') defaultIndex = 2;
+    else if (currentMode === 'trash') defaultIndex = 3;
 
     const selected = await showSelectionDialog(
         'View Mode',
@@ -1414,8 +1641,8 @@ async function handleViewModeMenu() {
             paneState.viewMode = newMode;
 
             // Reset pane state for new view mode
-            if (newMode === 'recent' || newMode === 'shared') {
-                // For recent/shared views, reset folder navigation
+            if (newMode === 'recent' || newMode === 'shared' || newMode === 'trash') {
+                // For recent/shared/trash views, reset folder navigation
                 paneState.currentFolder = 'root';
                 paneState.folderStack = [];
                 paneState.pathNames = [];
@@ -1445,6 +1672,21 @@ function updatePaneColors() {
         rightPane.classList.add('active');
     }
     rightPane.classList.add(`mode-${rightPaneState.viewMode}`);
+
+    // Update function key bar labels based on active pane's view mode
+    updateFunctionBar();
+}
+
+function updateFunctionBar() {
+    const activePaneState = state[state.activePane + 'Pane'];
+    const isTrash = activePaneState.viewMode === 'trash';
+
+    // Update F6 key label
+    if (isTrash) {
+        f6Key.innerHTML = '<span class="key-num">6</span>Restore/Del';
+    } else {
+        f6Key.innerHTML = '<span class="key-num">6</span>Move';
+    }
 }
 
 // Google Docs MIME types

@@ -150,6 +150,32 @@ body {
     background-color: #444400;
 }
 
+/* View mode colors - Trash (red) */
+.pane.mode-trash {
+    border-color: #AA0000;
+    background-color: #440000;
+}
+
+.pane.mode-trash.active {
+    border-color: #FF0000;
+}
+
+.pane.mode-trash .pane-header {
+    background-color: #AA0000;
+}
+
+.pane.mode-trash.active .pane-header {
+    background-color: #FF0000;
+}
+
+.pane.mode-trash .column-headers {
+    background-color: #440000;
+}
+
+.pane.mode-trash .file-list {
+    background-color: #440000;
+}
+
 .pane-header {
     background-color: #5555FF;
     color: #000000;
@@ -796,10 +822,18 @@ body {
     color: #000000;
 }
 
+.share-add-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-top: 10px;
+}
+
 .share-role-container {
     display: flex;
     align-items: center;
     gap: 10px;
+    flex: 1;
 }
 
 .share-label {
@@ -820,6 +854,26 @@ body {
 .share-role-select:focus {
     outline: none;
     border-color: #FFFF00;
+}
+
+.share-add-person-btn {
+    padding: 6px 16px;
+    background-color: #00FFFF;
+    color: #000000;
+    border: 2px solid #00FFFF;
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.share-add-person-btn:hover {
+    background-color: #FFFF00;
+    border-color: #FFFF00;
+}
+
+.share-add-person-btn:active {
+    background-color: #FFFFFF;
 }
 
 .share-permissions-list {
@@ -880,6 +934,18 @@ body {
     background-color: #FFFFFF;
 }
 
+.share-button-primary {
+    background-color: #FFFF00;
+    color: #000000;
+    border-color: #FFFF00;
+    font-weight: bold;
+}
+
+.share-button-primary:hover {
+    background-color: #FFFFFF;
+    border-color: #FFFFFF;
+}
+
 .share-permission-role-select {
     padding: 3px 8px;
     background-color: #000088;
@@ -903,15 +969,20 @@ body {
     margin-top: 10px;
 }
 
+.share-general-access-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
 .share-general-access-select {
-    width: 100%;
+    flex: 1;
     padding: 6px;
     background-color: #000088;
     color: #00FFFF;
     border: 1px solid #00FFFF;
     font-family: 'Courier New', monospace;
     font-size: 13px;
-    margin-bottom: 8px;
 }
 
 .share-general-access-select:focus {
@@ -919,9 +990,49 @@ body {
     outline-offset: 2px;
 }
 
+.share-general-access-role {
+    padding: 6px;
+    background-color: #000088;
+    color: #00FFFF;
+    border: 1px solid #00FFFF;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    min-width: 120px;
+}
+
+.share-general-access-role:focus {
+    outline: 2px solid #FFFF00;
+    outline-offset: 2px;
+}
+
+.share-general-access-role.hidden {
+    display: none;
+}
+
 .share-general-access-desc {
     font-size: 11px;
     color: #FFFF00;
     font-style: italic;
     margin-top: 5px;
+}
+
+.share-pending-item {
+    border-color: #FFFF00;
+    background-color: #001111;
+}
+
+.share-pending-item em {
+    color: #FFFF00;
+    font-style: italic;
+}
+
+.share-pending-removal {
+    border-color: #FF0000;
+    background-color: #220000;
+    opacity: 0.7;
+}
+
+.share-pending-removal em {
+    color: #FF0000;
+    font-style: italic;
 }

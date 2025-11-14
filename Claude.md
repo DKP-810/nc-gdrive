@@ -214,9 +214,10 @@ Unless otherwise specified: DRY, YAGNI, KISS, Pragmatic. Ask questions for clari
 - **Main Drive** (blue theme) - Browse normal Google Drive folders
 - **Recent Files** (yellow theme) - Shows recently viewed files
 - **Shared With Me** (green theme) - Shows files shared by others
+- **Trash** (red theme) - Shows trashed/deleted files
 - Each pane can independently switch between view modes
 - Color-coded panes indicate current view mode
-- Path display updates (Drive:\, Recent:\, Shared:\)
+- Path display updates (Drive:\, Recent:\, Shared:\, Trash:\)
 
 **Search (F9):**
 - Google Drive search with live suggestions dropdown
@@ -297,9 +298,12 @@ Unless otherwise specified: DRY, YAGNI, KISS, Pragmatic. Ask questions for clari
 - `list-files` - List files in a folder (with client-side sorting)
 - `list-recent-files` - Recent files with owner info
 - `list-shared-files` - Shared files with owner info
+- `list-trashed-files` - List files in trash with owner info
 - `search-files` - Search Drive by filename and content
 - `search-contacts` - Dual-search (directory + personal contacts)
-- `copy-file`, `move-file`, `delete-file` - File operations
+- `copy-file`, `move-file`, `delete-file` - File operations (delete moves to trash)
+- `restore-file` - Restore file from trash
+- `delete-file-forever` - Permanently delete file from trash
 - `rename-file` - Rename files and folders
 - `create-folder` - Make new directory
 - `get-file-url` - Get Google Drive web URL
@@ -370,6 +374,30 @@ npm start
 ### 🚀 Recent Updates
 
 **2025-11-13:**
+- **Context-Dependent Function Keys** - Function bar now updates based on active pane's view mode
+  - F6 shows "Move" in normal Drive mode
+  - F6 shows "Restore/Del" when in Trash view
+  - Function bar dynamically updates when switching panes or view modes
+- **Trash Operations (F6 in Trash)** - Complete trash management functionality
+  - Selection menu with "Restore", "Delete forever", "Cancel" options
+  - Restore returns files to their original location
+  - Delete forever requires confirmation with warning message
+  - Keyboard isolation - only menu responds to Tab cycling
+  - Default selection is "Restore" (safe option)
+- **Trash View Mode** - Added red-themed Trash view to F2 View Mode menu
+  - View trashed/deleted files from Google Drive
+  - Red color theme (dark red background, bright red borders)
+  - Owner column displayed in trash view
+  - Path shows "Trash:\"
+- **Safe Delete** - F8 Delete now moves files to trash instead of permanent deletion
+  - Dialog changed to "Move to Trash" with safer messaging
+  - Files can be recovered from Google Drive trash
+  - No permanent delete option outside of Trash view (safety first)
+- **General Access Role Selection** - Enhanced Share menu with role selection
+  - Role dropdown appears when selecting "Anyone with link" or domain access
+  - Choose between Viewer, Commenter, or Editor for general access
+  - Dynamic description updates (e.g., "can view", "can edit")
+  - Included in Tab navigation cycle
 - **F4 Share Menu (Phase 2 Complete)** - Full sharing functionality implemented
   - Directory contacts search with Google Workspace integration
   - Interactive role management dropdowns (Viewer/Commenter/Editor)
@@ -378,6 +406,7 @@ npm start
   - Copy link to clipboard functionality
   - Real-time permission updates with status feedback
   - Smart detection of current general access state
+  - Deferred changes pattern - all changes pending until "Apply Changes"
 - **Enhanced People API integration**
   - Added `searchDirectoryPeople` for organization contacts
   - Added `searchContacts` for personal contacts
